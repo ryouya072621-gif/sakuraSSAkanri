@@ -1,0 +1,113 @@
+body {
+    font-family: 'Segoe UI', 'Hiragino Sans', 'Meiryo', sans-serif;
+    background-color: #f8f9fa;
+}
+
+.sidebar {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+}
+
+.card {
+    border-radius: 12px;
+    border: 1px solid #e9ecef;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+}
+
+.card-header {
+    border-bottom: 1px solid #e9ecef;
+    background-color: #fff;
+    border-radius: 12px 12px 0 0 !important;
+}
+
+.table th {
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: #6c757d;
+    border-bottom-width: 1px;
+}
+
+.table td {
+    vertical-align: middle;
+}
+
+.badge {
+    font-weight: 500;
+}
+
+.form-control, .form-select {
+    border-radius: 8px;
+}
+
+.btn {
+    border-radius: 8px;
+}
+
+.alert {
+    border-radius: 8px;
+}
+
+/* カテゴリバッジ */
+.category-badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.category-core {
+    background-color: #dbeafe;
+    color: #1d4ed8;
+}
+
+.category-mtg {
+    background-color: #ede9fe;
+    color: #6d28d9;
+}
+
+.category-office {
+    background-color: #f3f4f6;
+    color: #374151;
+}
+
+.category-other {
+    background-color: #fee2e2;
+    color: #dc2626;
+}
+
+.category-travel {
+    background-color: #ffedd5;
+    color: #ea580c;
+}
+
+/* 削減対象 */
+.reduction-target {
+    color: #dc2626;
+    font-weight: 600;
+}
+
+/* プログレスバー */
+.progress-thin {
+    height: 6px;
+    border-radius: 3px;
+}
+
+/* ローディング */
+.loading {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+/* 印刷時 */
+@media print {
+    body {
+        background-color: #fff;
+    }
+    .card {
+        box-shadow: none;
+        border: 1px solid #dee2e6;
+    }
+}

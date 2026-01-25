@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+
+{% block title %}カテゴリ管理 - 個人業務分析レポート{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1">
+                    <li class="breadcrumb-item"><a href="{{ url_for('admin.index') }}">管理設定</a></li>
+                    <li class="breadcrumb-item active">カテゴリ管理</li>
+                </ol>
+            </nav>
+            <h2><i class="bi bi-palette me-2"></i>カテゴリ管理</h2>
+        </div>
+        <button class="btn btn-primary" onclick="showAddModal()">
+            <i class="bi bi-plus-lg me-1"></i>新規カテゴリ追加
+        </button>
+    </div>
+
+    <div class="card">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width: 50px;">順序</th>
+                            <th>カテゴリ名</th>
+                            <th style="width: 80px;">グラフ色</th>
+                            <th style="width: 120px;">バッジプレビュー</th>
+                            <th style="width: 100px;">削減対象</th>
+                            <th style="width: 100px;">キーワード数</th>
+                            <th style="width: 120px;">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="categoriesTable">
+                        <tr><td colspan="7" class="text-center py-4 text-muted">読み込み中...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="alert alert-info mt-3">
+        <i class="bi bi-info-circle me-2"></i>
+        順序の変更はドラッグ&ドロップで行えます。変更は自動的に保存されます。
+    </div>
+</div>
+
+<!-- 追加/編集モーダル -->
+<div class="modal fade" id="categoryModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalTitle">カテゴリ追加</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="categoryId">
+                <div class="mb-3">
+                    <label class="form-label">カテゴリ名 <span class="text-danger">*</span></label>
+                    <input type="text" id="categoryName" class="form-control" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">グラフ色</label>
+                    <div class="input-group">
+                        <input type="color" id="categoryColor" class="form-control form-control-color" value="#6B7280">
+                        <input type="text" id="categoryColorText" class="form-control" value="#6B7280" maxlength="7">
+                    </div>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-6">
+                        <label class="form-label">バッジ背景色</label>
+                        <div class="input-group">
+                            <input type="color" id="badgeBgColor" class="form-control form-control-color" value="#f3f4f6">
+                            <input type="text" id="badgeBgColorText" class="form-control" value="#f3f4f6" maxlength="7">
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">バッジ文字色</label>
+                        <div class="input-group">
+                            <input type="color" id="badgeTextColor" class="form-control form-control-color" value="#374151">
+                            <input type="text" id="badgeTextColorText" class="form-control" value="#374151" maxlength="7">
+                        </div>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">バッジプレビュー</label>
+                    <div>
+                        <span id="badgePreview" class="category-badge">サンプル</span>
+                    </div>
+                </div>
+                <div class="form-check">
+                    <input type="checkbox" id="isReductionTarget" class="form-check-input">
+                    <label class="form-check-label" for="isReductionTarget">
+                        削減対象として表示
+                        <small class="text-muted d-block">チェックすると、KPIカードの「削減対象」に含まれます</small>
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+                <button type="button" class="btn btn-primary" onclick="saveCategory()">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/admin.js') }}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    loadCategories();
+    setupColorPickers();
+});
+</script>
+{% endblock %}

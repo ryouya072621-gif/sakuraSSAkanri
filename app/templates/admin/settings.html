@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+
+{% block title %}アプリ設定 - 個人業務分析レポート{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1">
+                    <li class="breadcrumb-item"><a href="{{ url_for('admin.index') }}">管理設定</a></li>
+                    <li class="breadcrumb-item active">アプリ設定</li>
+                </ol>
+            </nav>
+            <h2><i class="bi bi-sliders me-2"></i>アプリケーション設定</h2>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8">
+            <form id="settingsForm">
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="bi bi-currency-yen me-2"></i>コスト計算設定</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label">デフォルト時給</label>
+                            <div class="input-group" style="max-width: 200px;">
+                                <span class="input-group-text">¥</span>
+                                <input type="number" id="default_hourly_rate" class="form-control" min="0" step="100">
+                            </div>
+                            <small class="text-muted">ダッシュボードの「想定時給」の初期値として使用されます</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="bi bi-list-ol me-2"></i>表示設定</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label">ランキング表示件数</label>
+                            <div class="input-group" style="max-width: 150px;">
+                                <input type="number" id="ranking_limit" class="form-control" min="1" max="100">
+                                <span class="input-group-text">件</span>
+                            </div>
+                            <small class="text-muted">「業務別 時間消費ランキング」に表示する件数</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="bi bi-tag me-2"></i>分類設定</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label">デフォルト分類カテゴリ</label>
+                            <select id="default_category" class="form-select" style="max-width: 200px;">
+                                {% for cat in categories %}
+                                <option value="{{ cat.name }}">{{ cat.name }}</option>
+                                {% endfor %}
+                            </select>
+                            <small class="text-muted">どのキーワードにもマッチしない場合の分類先</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="d-flex justify-content-end gap-2">
+                    <a href="{{ url_for('admin.index') }}" class="btn btn-outline-secondary">
+                        キャンセル
+                    </a>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-lg me-1"></i>設定を保存
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="bi bi-question-circle me-2"></i>ヘルプ</h6>
+                </div>
+                <div class="card-body">
+                    <h6>デフォルト時給</h6>
+                    <p class="small text-muted">
+                        この値は、ダッシュボード画面の「想定時給」入力欄の初期値として使用されます。
+                        ユーザーは画面上で自由に変更できます。
+                    </p>
+
+                    <h6>ランキング表示件数</h6>
+                    <p class="small text-muted">
+                        業務別の時間消費ランキングテーブルに表示する最大件数です。
+                        多すぎると画面が長くなり、少なすぎると重要な情報が見えなくなる可能性があります。
+                    </p>
+
+                    <h6>デフォルト分類カテゴリ</h6>
+                    <p class="small text-muted mb-0">
+                        キーワードマッチングでどのルールにも該当しなかった業務は、
+                        このカテゴリに自動的に分類されます。
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/admin.js') }}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    loadSettings();
+
+    document.getElementById('settingsForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        saveSettings();
+    });
+});
+</script>
+{% endblock %}

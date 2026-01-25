@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+
+{% block title %}分類ルール管理 - 個人業務分析レポート{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1">
+                    <li class="breadcrumb-item"><a href="{{ url_for('admin.index') }}">管理設定</a></li>
+                    <li class="breadcrumb-item active">分類ルール管理</li>
+                </ol>
+            </nav>
+            <h2><i class="bi bi-tag me-2"></i>分類ルール管理</h2>
+        </div>
+        <div>
+            <button class="btn btn-outline-success me-2" onclick="showSuggestionsModal()">
+                <i class="bi bi-magic me-1"></i>自動提案
+            </button>
+            <button class="btn btn-primary" onclick="showAddKeywordModal()">
+                <i class="bi bi-plus-lg me-1"></i>新規ルール追加
+            </button>
+        </div>
+    </div>
+
+    <!-- フィルタ -->
+    <div class="card mb-3">
+        <div class="card-body">
+            <div class="row g-3 align-items-center">
+                <div class="col-auto">
+                    <label class="form-label mb-0">カテゴリ:</label>
+                </div>
+                <div class="col-auto">
+                    <select id="filterCategory" class="form-select" onchange="loadKeywords()">
+                        <option value="">全カテゴリ</option>
+                        {% for cat in categories %}
+                        <option value="{{ cat.id }}">{{ cat.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-auto">
+                    <div class="form-check">
+                        <input type="checkbox" id="filterActive" class="form-check-input" checked onchange="loadKeywords()">
+                        <label class="form-check-label" for="filterActive">有効のみ表示</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>キーワード</th>
+                            <th>分類先カテゴリ</th>
+                            <th style="width: 120px;">マッチ方式</th>
+                            <th style="width: 80px;">優先度</th>
+                            <th style="width: 80px;">有効</th>
+                            <th style="width: 120px;">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="keywordsTable">
+                        <tr><td colspan="6" class="text-center py-4 text-muted">読み込み中...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="alert alert-info mt-3">
+        <i class="bi bi-info-circle me-2"></i>
+        <strong>マッチング順序:</strong> 優先度が高いキーワードから順にマッチングを試みます。同じ優先度の場合は登録順です。<br>
+        <strong>マッチング対象:</strong> 「仕事分類2」と「業務名」の両方でキーワードをマッチングします。
+    </div>
+</div>
+
+<!-- 自動提案モーダル -->
+<div class="modal fade" id="suggestionsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-magic me-2"></i>キーワード自動提案</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted mb-3">現在のデータを分析し、未分類の業務から有効なキーワードを提案します。</p>
+                <div id="suggestionsLoading" class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="mt-2 text-muted">分析中...</p>
+                </div>
+                <div id="suggestionsContent" style="display:none;">
+                    <div id="suggestionsEmpty" class="alert alert-success" style="display:none;">
+                        <i class="bi bi-check-circle me-2"></i>追加すべきキーワード候補はありません。現在の分類ルールで適切に分類されています。
+                    </div>
+                    <div id="suggestionsList">
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th style="width:40px;">
+                                            <input type="checkbox" id="selectAllSuggestions" class="form-check-input" onchange="toggleAllSuggestions()">
+                                        </th>
+                                        <th>キーワード</th>
+                                        <th>提案カテゴリ</th>
+                                        <th style="width:100px;">該当件数</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="suggestionsTable">
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">閉じる</button>
+                <button type="button" class="btn btn-success" id="applySuggestionsBtn" onclick="applySuggestions()" disabled>
+                    <i class="bi bi-check-lg me-1"></i>選択したキーワードを登録
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 追加/編集モーダル -->
+<div class="modal fade" id="keywordModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="keywordModalTitle">ルール追加</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="keywordId">
+                <div class="mb-3">
+                    <label class="form-label">キーワード <span class="text-danger">*</span></label>
+                    <input type="text" id="keywordText" class="form-control" required>
+                    <small class="text-muted">「仕事分類2」または「業務名」にこのキーワードが含まれる場合、指定したカテゴリに分類されます</small>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">マッチ方式</label>
+                    <select id="matchType" class="form-select">
+                        <option value="contains">含む（部分一致）</option>
+                        <option value="exact">完全一致</option>
+                        <option value="startswith">前方一致</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">分類先カテゴリ <span class="text-danger">*</span></label>
+                    <select id="keywordCategory" class="form-select" required>
+                        {% for cat in categories %}
+                        <option value="{{ cat.id }}">{{ cat.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">優先度</label>
+                    <input type="number" id="keywordPriority" class="form-control" value="10" min="0" max="100">
+                    <small class="text-muted">大きい値ほど優先的にマッチングされます（0〜100）</small>
+                </div>
+                <div class="form-check">
+                    <input type="checkbox" id="keywordActive" class="form-check-input" checked>
+                    <label class="form-check-label" for="keywordActive">有効</label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+                <button type="button" class="btn btn-primary" onclick="saveKeyword()">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/admin.js') }}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    loadKeywords();
+});
+</script>
+{% endblock %}
