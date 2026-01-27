@@ -1,0 +1,329 @@
+{% extends "base.html" %}
+
+{% block title %}単位タイプ設定 - 個人業務分析レポート{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1">
+                    <li class="breadcrumb-item"><a href="{{ url_for('admin.index') }}">管理設定</a></li>
+                    <li class="breadcrumb-item active">単位タイプ設定</li>
+                </ol>
+            </nav>
+            <h2><i class="bi bi-clock-history me-2"></i>単位タイプ設定</h2>
+            <p class="text-muted mb-0">業務名から「時間制(h)」か「件数制(件)」かを判定するルールを設定します</p>
+        </div>
+        <div>
+            <button class="btn btn-outline-secondary me-2" onclick="seedDefaultRules()">
+                <i class="bi bi-arrow-repeat me-1"></i>デフォルト投入
+            </button>
+            <button class="btn btn-primary" onclick="showAddRuleModal()">
+                <i class="bi bi-plus-lg me-1"></i>新規ルール追加
+            </button>
+        </div>
+    </div>
+
+    <!-- テスト機能 -->
+    <div class="card mb-3">
+        <div class="card-header bg-light">
+            <i class="bi bi-search me-1"></i>ルールテスト
+        </div>
+        <div class="card-body">
+            <div class="row g-3 align-items-center">
+                <div class="col-auto">
+                    <label class="form-label mb-0">業務名:</label>
+                </div>
+                <div class="col">
+                    <input type="text" id="testWorkName" class="form-control" placeholder="例: 電話対応、施工ノート入力">
+                </div>
+                <div class="col-auto">
+                    <button class="btn btn-outline-primary" onclick="testRule()">テスト</button>
+                </div>
+                <div class="col-auto">
+                    <span id="testResult" class="badge fs-6"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>キーワード</th>
+                            <th style="width: 120px;">単位タイプ</th>
+                            <th style="width: 120px;">マッチ方式</th>
+                            <th style="width: 80px;">優先度</th>
+                            <th style="width: 80px;">有効</th>
+                            <th style="width: 120px;">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="rulesTable">
+                        <tr><td colspan="6" class="text-center py-4 text-muted">読み込み中...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="alert alert-info mt-3">
+        <i class="bi bi-info-circle me-2"></i>
+        <strong>時間制(h):</strong> MTG、会議、対応など時間で計測する業務<br>
+        <strong>件数制(件):</strong> 入力、作成、チェックなど件数で計測する業務
+    </div>
+</div>
+
+<!-- 追加/編集モーダル -->
+<div class="modal fade" id="ruleModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="ruleModalTitle">ルール追加</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="editRuleId">
+                <div class="mb-3">
+                    <label class="form-label">キーワード</label>
+                    <input type="text" id="ruleKeyword" class="form-control" placeholder="例: MTG, 入力">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">単位タイプ</label>
+                    <select id="ruleUnitType" class="form-select">
+                        <option value="hours">時間制 (h)</option>
+                        <option value="count">件数制 (件)</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">マッチ方式</label>
+                    <select id="ruleMatchType" class="form-select">
+                        <option value="suffix">末尾一致 (〇〇入力)</option>
+                        <option value="contains">部分一致 (MTGを含む)</option>
+                        <option value="exact">完全一致</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">優先度</label>
+                    <input type="number" id="rulePriority" class="form-control" value="10" min="0" max="100">
+                    <div class="form-text">数字が大きいほど優先的にマッチングされます</div>
+                </div>
+                <div class="form-check">
+                    <input type="checkbox" id="ruleIsActive" class="form-check-input" checked>
+                    <label class="form-check-label" for="ruleIsActive">有効</label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+                <button type="button" class="btn btn-primary" onclick="saveRule()">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let ruleModal;
+
+document.addEventListener('DOMContentLoaded', function() {
+    ruleModal = new bootstrap.Modal(document.getElementById('ruleModal'));
+    loadRules();
+});
+
+async function loadRules() {
+    try {
+        const response = await fetch('/admin/api/unit-rules');
+        const data = await response.json();
+        renderRules(data.rules);
+    } catch (e) {
+        console.error('Failed to load rules:', e);
+    }
+}
+
+function renderRules(rules) {
+    const tbody = document.getElementById('rulesTable');
+
+    if (!rules || rules.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-muted">ルールがありません。「デフォルト投入」をクリックして初期ルールを追加してください。</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = rules.map(rule => {
+        const unitBadge = rule.unit_type === 'hours'
+            ? '<span class="badge bg-primary">時間制 (h)</span>'
+            : '<span class="badge bg-success">件数制 (件)</span>';
+
+        const matchLabel = {
+            'suffix': '末尾一致',
+            'contains': '部分一致',
+            'exact': '完全一致'
+        }[rule.match_type] || rule.match_type;
+
+        return `
+        <tr>
+            <td><strong>${escapeHtml(rule.keyword)}</strong></td>
+            <td>${unitBadge}</td>
+            <td>${matchLabel}</td>
+            <td>${rule.priority}</td>
+            <td>
+                <span class="badge ${rule.is_active ? 'bg-success' : 'bg-secondary'}">
+                    ${rule.is_active ? '有効' : '無効'}
+                </span>
+            </td>
+            <td>
+                <button class="btn btn-sm btn-outline-primary me-1" onclick="editRule(${rule.id})">
+                    <i class="bi bi-pencil"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-danger" onclick="deleteRule(${rule.id})">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </td>
+        </tr>
+        `;
+    }).join('');
+}
+
+function showAddRuleModal() {
+    document.getElementById('ruleModalTitle').textContent = 'ルール追加';
+    document.getElementById('editRuleId').value = '';
+    document.getElementById('ruleKeyword').value = '';
+    document.getElementById('ruleUnitType').value = 'hours';
+    document.getElementById('ruleMatchType').value = 'suffix';
+    document.getElementById('rulePriority').value = '10';
+    document.getElementById('ruleIsActive').checked = true;
+    ruleModal.show();
+}
+
+async function editRule(id) {
+    try {
+        const response = await fetch('/admin/api/unit-rules');
+        const data = await response.json();
+        const rule = data.rules.find(r => r.id === id);
+
+        if (rule) {
+            document.getElementById('ruleModalTitle').textContent = 'ルール編集';
+            document.getElementById('editRuleId').value = rule.id;
+            document.getElementById('ruleKeyword').value = rule.keyword;
+            document.getElementById('ruleUnitType').value = rule.unit_type;
+            document.getElementById('ruleMatchType').value = rule.match_type;
+            document.getElementById('rulePriority').value = rule.priority;
+            document.getElementById('ruleIsActive').checked = rule.is_active;
+            ruleModal.show();
+        }
+    } catch (e) {
+        console.error('Failed to load rule:', e);
+    }
+}
+
+async function saveRule() {
+    const id = document.getElementById('editRuleId').value;
+    const data = {
+        keyword: document.getElementById('ruleKeyword').value,
+        unit_type: document.getElementById('ruleUnitType').value,
+        match_type: document.getElementById('ruleMatchType').value,
+        priority: parseInt(document.getElementById('rulePriority').value),
+        is_active: document.getElementById('ruleIsActive').checked
+    };
+
+    try {
+        const url = id ? `/admin/api/unit-rules/${id}` : '/admin/api/unit-rules';
+        const method = id ? 'PUT' : 'POST';
+
+        const response = await fetch(url, {
+            method: method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+
+        if (response.ok) {
+            ruleModal.hide();
+            loadRules();
+        } else {
+            alert('保存に失敗しました');
+        }
+    } catch (e) {
+        console.error('Failed to save rule:', e);
+        alert('エラーが発生しました');
+    }
+}
+
+async function deleteRule(id) {
+    if (!confirm('このルールを削除しますか？')) return;
+
+    try {
+        const response = await fetch(`/admin/api/unit-rules/${id}`, {
+            method: 'DELETE'
+        });
+
+        if (response.ok) {
+            loadRules();
+        } else {
+            alert('削除に失敗しました');
+        }
+    } catch (e) {
+        console.error('Failed to delete rule:', e);
+        alert('エラーが発生しました');
+    }
+}
+
+async function seedDefaultRules() {
+    if (!confirm('デフォルトのルールを投入しますか？既存のルールは保持されます。')) return;
+
+    try {
+        const response = await fetch('/admin/api/unit-rules/seed', {
+            method: 'POST'
+        });
+
+        if (response.ok) {
+            loadRules();
+            alert('デフォルトルールを投入しました');
+        } else {
+            alert('投入に失敗しました');
+        }
+    } catch (e) {
+        console.error('Failed to seed rules:', e);
+        alert('エラーが発生しました');
+    }
+}
+
+async function testRule() {
+    const workName = document.getElementById('testWorkName').value;
+    if (!workName) {
+        alert('業務名を入力してください');
+        return;
+    }
+
+    try {
+        const response = await fetch('/admin/api/unit-rules/test', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ work_name: workName })
+        });
+
+        const data = await response.json();
+        const resultEl = document.getElementById('testResult');
+
+        if (data.unit_type === 'hours') {
+            resultEl.className = 'badge fs-6 bg-primary';
+            resultEl.textContent = `時間制 (${data.unit_suffix})`;
+        } else {
+            resultEl.className = 'badge fs-6 bg-success';
+            resultEl.textContent = `件数制 (${data.unit_suffix})`;
+        }
+    } catch (e) {
+        console.error('Failed to test rule:', e);
+    }
+}
+
+function escapeHtml(str) {
+    if (!str) return '';
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+</script>
+{% endblock %}

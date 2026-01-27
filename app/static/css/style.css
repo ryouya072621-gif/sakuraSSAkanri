@@ -101,6 +101,25 @@ body {
     pointer-events: none;
 }
 
+/* 削減対象トグルボタン */
+.toggle-reduction-btn {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.toggle-reduction-btn:hover {
+    transform: scale(1.1);
+}
+
+.toggle-reduction-btn.btn-warning {
+    color: #fff;
+}
+
 /* 印刷時 */
 @media print {
     body {
@@ -109,5 +128,8 @@ body {
     .card {
         box-shadow: none;
         border: 1px solid #dee2e6;
+    }
+    .toggle-reduction-btn {
+        display: none;
     }
 }

@@ -18,3 +18,12 @@ def dashboard():
     if record_count == 0:
         return redirect(url_for('upload.index'))
     return render_template('dashboard.html')
+
+
+@bp.route('/staff-comparison')
+def staff_comparison():
+    """スタッフ別比較ページ"""
+    record_count = WorkRecord.query.count()
+    if record_count == 0:
+        return redirect(url_for('upload.index'))
+    return render_template('staff_comparison.html')

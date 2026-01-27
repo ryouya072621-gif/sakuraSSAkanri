@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+
+{% block title %}AI カテゴリ分類レビュー{% endblock %}
+
+{% block extra_css %}
+<style>
+.confidence-high { background-color: #d4edda; }
+.confidence-medium { background-color: #fff3cd; }
+.confidence-low { background-color: #f8d7da; }
+.spinner-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(255,255,255,0.8);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h4 class="mb-1"><i class="bi bi-robot me-2"></i>AI カテゴリ分類レビュー</h4>
+            <small class="text-muted">{{ filename }}</small>
+        </div>
+        <div>
+            <a href="{{ url_for('upload.index') }}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left me-1"></i>戻る
+            </a>
+        </div>
+    </div>
+
+    <div class="alert alert-info">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <i class="bi bi-info-circle me-2"></i>
+                <strong>{{ total_records }}件</strong>のレコードから
+                <strong>{{ total_combinations }}件</strong>のユニークな業務パターンを検出しました。
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="runAICategorization()" id="aiCategorizeBtn">
+                <i class="bi bi-robot me-1"></i>AIで自動分類
+            </button>
+        </div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-list-check me-2"></i>分類プレビュー</span>
+            <div class="btn-group btn-group-sm">
+                <button class="btn btn-outline-secondary" onclick="filterRows('all')">全て</button>
+                <button class="btn btn-outline-warning" onclick="filterRows('low')">要確認</button>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
+                <table class="table table-hover table-sm mb-0">
+                    <thead class="table-light sticky-top">
+                        <tr>
+                            <th style="width: 20%;">仕事分類1</th>
+                            <th style="width: 20%;">仕事分類2</th>
+                            <th style="width: 25%;">仕事名</th>
+                            <th style="width: 8%;">件数</th>
+                            <th style="width: 20%;">カテゴリ</th>
+                            <th style="width: 7%;">確信度</th>
+                        </tr>
+                    </thead>
+                    <tbody id="previewTable">
+                        {% for combo in unique_combinations %}
+                        <tr data-combo-key="{{ combo.category1 }}|{{ combo.category2 }}|{{ combo.work_name }}">
+                            <td>{{ combo.category1 or '-' }}</td>
+                            <td>{{ combo.category2 or '-' }}</td>
+                            <td>{{ combo.work_name or '-' }}</td>
+                            <td class="text-center">{{ combo.count }}</td>
+                            <td>
+                                <select class="form-select form-select-sm category-select">
+                                    <option value="">-- 選択 --</option>
+                                    {% for cat in categories %}
+                                    <option value="{{ cat.id }}">{{ cat.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                            <td class="text-center confidence-cell">
+                                <span class="badge bg-secondary">--</span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="d-flex justify-content-between">
+        <form action="{{ url_for('upload.cancel') }}" method="post">
+            <button type="submit" class="btn btn-outline-danger">
+                <i class="bi bi-x-lg me-1"></i>キャンセル
+            </button>
+        </form>
+        <div class="d-flex gap-2">
+            <button class="btn btn-success" onclick="confirmUpload()">
+                <i class="bi bi-check-lg me-1"></i>確定して保存
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- ローディングオーバーレイ -->
+<div class="spinner-overlay" id="loadingOverlay">
+    <div class="text-center" style="width: 400px;">
+        <div class="spinner-border text-primary mb-3" style="width: 3rem; height: 3rem;"></div>
+        <div id="loadingText" class="mb-3">AI分類中...</div>
+
+        <!-- プログレスバー -->
+        <div id="progressContainer" class="mb-3" style="display: none;">
+            <div class="progress" style="height: 25px;">
+                <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated"
+                     role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                </div>
+            </div>
+        </div>
+
+        <!-- キャンセルボタン -->
+        <button id="cancelCategorizeBtn" class="btn btn-outline-danger btn-sm" onclick="cancelCategorization()" style="display: none;">
+            <i class="bi bi-x-circle me-1"></i>キャンセル
+        </button>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/upload-preview.js') }}"></script>
+{% endblock %}

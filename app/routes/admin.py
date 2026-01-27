@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, jsonify, request
 from sqlalchemy import func
 from app import db
-from app.models import DisplayCategory, CategoryKeyword, AppSetting, WorkRecord, CategoryMapping
+from app.models import DisplayCategory, CategoryKeyword, AppSetting, WorkRecord, CategoryMapping, UnitTypeRule, SubCategoryRule
 
 bp = Blueprint('admin', __name__, url_prefix='/admin')
 
@@ -356,4 +356,190 @@ def api_apply_suggestions():
         'success': True,
         'added_count': len(added),
         'added_keywords': added
+    })
+
+
+# ============================================
+# 単位タイプルール管理
+# ============================================
+
+@bp.route('/unit-rules')
+def unit_rules():
+    """単位タイプルール管理画面"""
+    return render_template('admin/unit_rules.html')
+
+
+@bp.route('/api/unit-rules', methods=['GET'])
+def api_get_unit_rules():
+    """単位タイプルール一覧取得"""
+    rules = UnitTypeRule.query.order_by(UnitTypeRule.priority.desc(), UnitTypeRule.keyword).all()
+    return jsonify({
+        'rules': [r.to_dict() for r in rules]
+    })
+
+
+@bp.route('/api/unit-rules', methods=['POST'])
+def api_create_unit_rule():
+    """単位タイプルール作成"""
+    data = request.json
+
+    rule = UnitTypeRule(
+        keyword=data['keyword'],
+        unit_type=data.get('unit_type', 'hours'),
+        match_type=data.get('match_type', 'suffix'),
+        priority=data.get('priority', 10),
+        is_active=data.get('is_active', True)
+    )
+    db.session.add(rule)
+    db.session.commit()
+    UnitTypeRule.clear_cache()
+
+    return jsonify({'success': True, 'rule': rule.to_dict()})
+
+
+@bp.route('/api/unit-rules/<int:id>', methods=['PUT'])
+def api_update_unit_rule(id):
+    """単位タイプルール更新"""
+    rule = UnitTypeRule.query.get_or_404(id)
+    data = request.json
+
+    rule.keyword = data.get('keyword', rule.keyword)
+    rule.unit_type = data.get('unit_type', rule.unit_type)
+    rule.match_type = data.get('match_type', rule.match_type)
+    rule.priority = data.get('priority', rule.priority)
+    rule.is_active = data.get('is_active', rule.is_active)
+
+    db.session.commit()
+    UnitTypeRule.clear_cache()
+
+    return jsonify({'success': True, 'rule': rule.to_dict()})
+
+
+@bp.route('/api/unit-rules/<int:id>', methods=['DELETE'])
+def api_delete_unit_rule(id):
+    """単位タイプルール削除"""
+    rule = UnitTypeRule.query.get_or_404(id)
+    db.session.delete(rule)
+    db.session.commit()
+    UnitTypeRule.clear_cache()
+
+    return jsonify({'success': True})
+
+
+@bp.route('/api/unit-rules/seed', methods=['POST'])
+def api_seed_unit_rules():
+    """デフォルト単位タイプルールを投入"""
+    UnitTypeRule.seed_default_rules()
+    return jsonify({'success': True, 'message': 'デフォルトルールを投入しました'})
+
+
+@bp.route('/api/unit-rules/test', methods=['POST'])
+def api_test_unit_rule():
+    """業務名で単位タイプをテスト"""
+    from app.services.task_grouper import get_unit_type, get_unit_suffix
+
+    data = request.json
+    work_name = data.get('work_name', '')
+
+    unit_type = get_unit_type(work_name)
+    unit_suffix = get_unit_suffix(work_name)
+
+    return jsonify({
+        'work_name': work_name,
+        'unit_type': unit_type,
+        'unit_suffix': unit_suffix,
+        'display': f'{work_name} → {unit_suffix}'
+    })
+
+
+# ============================================
+# サブカテゴリルール管理
+# ============================================
+
+@bp.route('/sub-categories')
+def sub_categories():
+    """サブカテゴリルール管理画面"""
+    categories = DisplayCategory.query.order_by(DisplayCategory.sort_order).all()
+    return render_template('admin/sub_categories.html', categories=categories)
+
+
+@bp.route('/api/sub-categories', methods=['GET'])
+def api_get_sub_category_rules():
+    """サブカテゴリルール一覧取得"""
+    rules = SubCategoryRule.query.order_by(SubCategoryRule.priority.desc(), SubCategoryRule.keyword).all()
+    return jsonify({
+        'rules': [r.to_dict() for r in rules]
+    })
+
+
+@bp.route('/api/sub-categories', methods=['POST'])
+def api_create_sub_category_rule():
+    """サブカテゴリルール作成"""
+    data = request.json
+
+    rule = SubCategoryRule(
+        parent_category_id=data.get('parent_category_id'),
+        sub_category_name=data['sub_category_name'],
+        keyword=data['keyword'],
+        match_type=data.get('match_type', 'contains'),
+        priority=data.get('priority', 10),
+        is_active=data.get('is_active', True)
+    )
+    db.session.add(rule)
+    db.session.commit()
+    SubCategoryRule.clear_cache()
+
+    return jsonify({'success': True, 'rule': rule.to_dict()})
+
+
+@bp.route('/api/sub-categories/<int:id>', methods=['PUT'])
+def api_update_sub_category_rule(id):
+    """サブカテゴリルール更新"""
+    rule = SubCategoryRule.query.get_or_404(id)
+    data = request.json
+
+    rule.parent_category_id = data.get('parent_category_id', rule.parent_category_id)
+    rule.sub_category_name = data.get('sub_category_name', rule.sub_category_name)
+    rule.keyword = data.get('keyword', rule.keyword)
+    rule.match_type = data.get('match_type', rule.match_type)
+    rule.priority = data.get('priority', rule.priority)
+    rule.is_active = data.get('is_active', rule.is_active)
+
+    db.session.commit()
+    SubCategoryRule.clear_cache()
+
+    return jsonify({'success': True, 'rule': rule.to_dict()})
+
+
+@bp.route('/api/sub-categories/<int:id>', methods=['DELETE'])
+def api_delete_sub_category_rule(id):
+    """サブカテゴリルール削除"""
+    rule = SubCategoryRule.query.get_or_404(id)
+    db.session.delete(rule)
+    db.session.commit()
+    SubCategoryRule.clear_cache()
+
+    return jsonify({'success': True})
+
+
+@bp.route('/api/sub-categories/seed', methods=['POST'])
+def api_seed_sub_category_rules():
+    """デフォルトサブカテゴリルールを投入"""
+    SubCategoryRule.seed_default_rules()
+    return jsonify({'success': True, 'message': 'デフォルトルールを投入しました'})
+
+
+@bp.route('/api/sub-categories/test', methods=['POST'])
+def api_test_sub_category():
+    """業務名でサブカテゴリをテスト"""
+    from app.services.task_grouper import get_sub_category
+
+    data = request.json
+    work_name = data.get('work_name', '')
+
+    sub_category = get_sub_category(work_name)
+
+    return jsonify({
+        'work_name': work_name,
+        'sub_category': sub_category or '(なし)'
     })

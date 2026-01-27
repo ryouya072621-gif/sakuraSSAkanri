@@ -72,6 +72,9 @@
         </div>
 
         <div class="mt-4 d-flex flex-column gap-2">
+            <a href="{{ url_for('main.staff_comparison') }}" class="btn btn-outline-info btn-sm w-100">
+                <i class="bi bi-people me-1"></i>スタッフ別比較
+            </a>
             <a href="{{ url_for('upload.index') }}" class="btn btn-outline-secondary btn-sm w-100">
                 <i class="bi bi-cloud-upload me-1"></i>データを再アップロード
             </a>
@@ -146,6 +149,36 @@
             </div>
         </div>
 
+        <!-- 異常値アラートセクション -->
+        <div id="alertsSection" class="mb-4" style="display: none;">
+            <!-- JSで動的に生成 -->
+        </div>
+
+        <!-- AIインサイトパネル -->
+        <div class="row g-3 mb-4">
+            <div class="col-12">
+                <div class="card border-warning">
+                    <div class="card-header bg-warning bg-opacity-10 d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0"><i class="bi bi-robot me-2 text-warning"></i>AI分析インサイト</h6>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-sm btn-outline-secondary" onclick="generateAIReport('weekly')" title="週次レポート生成">
+                                <i class="bi bi-file-text me-1"></i>レポート
+                            </button>
+                            <button class="btn btn-sm btn-outline-warning" onclick="refreshAIInsights()" title="更新">
+                                <i class="bi bi-arrow-clockwise"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body" id="aiInsightsContent">
+                        <div class="text-center py-3 text-muted">
+                            <div class="spinner-border spinner-border-sm me-2"></div>
+                            AIが分析中...
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- グラフエリア -->
         <div class="row g-3 mb-4">
             <div class="col-md-5">
@@ -170,16 +203,47 @@
             </div>
         </div>
 
+        <!-- 削減対象業務の推移グラフ -->
+        <div class="row g-3 mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0"><i class="bi bi-graph-up me-2"></i>削減対象業務の推移</h6>
+                        <div class="d-flex align-items-center gap-3">
+                            <div id="goalIndicator" class="small text-muted" style="display: none;">
+                                <span class="badge bg-danger">目標: <span id="goalPercent">-</span>%削減</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="trendChart" height="150"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- ランキングテーブル -->
         <div class="card">
             <div class="card-header bg-white d-flex justify-content-between align-items-center">
                 <h6 class="mb-0"><i class="bi bi-list-ol me-2"></i>業務別 時間消費ランキング</h6>
-                <span class="badge bg-secondary">上位10項目</span>
+                <div class="d-flex align-items-center gap-2">
+                    <div class="btn-group btn-group-sm" role="group">
+                        <input type="radio" class="btn-check" name="rankingMode" id="rankingModeNormal" checked onchange="toggleRankingMode(false)">
+                        <label class="btn btn-outline-secondary" for="rankingModeNormal" title="通常表示">
+                            <i class="bi bi-list"></i>
+                        </label>
+                        <input type="radio" class="btn-check" name="rankingMode" id="rankingModeGroup" onchange="toggleRankingMode(true)">
+                        <label class="btn btn-outline-secondary" for="rankingModeGroup" title="グループ表示（類似業務をまとめる）">
+                            <i class="bi bi-collection"></i>
+                        </label>
+                    </div>
+                    <span id="rankingBadge" class="badge bg-secondary">上位10項目</span>
+                </div>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
                     <table class="table table-hover mb-0">
-                        <thead class="table-light">
+                        <thead class="table-light" id="rankingTableHead">
                             <tr>
                                 <th>業務名</th>
                                 <th>カテゴリ</th>
@@ -187,10 +251,11 @@
                                 <th>割合</th>
                                 <th class="text-end">推定コスト</th>
                                 <th>判定</th>
+                                <th class="text-center">操作</th>
                             </tr>
                         </thead>
                         <tbody id="rankingTable">
-                            <tr><td colspan="6" class="text-center py-4 text-muted">データを読み込み中...</td></tr>
+                            <tr><td colspan="7" class="text-center py-4 text-muted">データを読み込み中...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -199,5 +264,34 @@
     </div>
 </div>
 
+<!-- AIチャットウィジェット -->
+<div class="position-fixed bottom-0 end-0 m-4 no-print" style="z-index: 1050;">
+    <!-- チャットウィンドウ -->
+    <div id="chatWidget" class="card shadow-lg mb-2" style="width: 350px; display: none; flex-direction: column;">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center py-2">
+            <span><i class="bi bi-robot me-2"></i>AI アシスタント</span>
+            <button class="btn btn-sm btn-link text-white p-0" onclick="toggleChat()">
+                <i class="bi bi-x-lg"></i>
+            </button>
+        </div>
+        <div class="card-body p-2" id="chatMessages" style="height: 300px; overflow-y: auto;">
+            <!-- メッセージはJSで動的に追加 -->
+        </div>
+        <div class="card-footer p-2">
+            <div class="input-group input-group-sm">
+                <input type="text" class="form-control" id="chatInput" placeholder="質問を入力...">
+                <button class="btn btn-primary" onclick="sendChatMessage()">
+                    <i class="bi bi-send"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+    <!-- チャットトグルボタン -->
+    <button class="btn btn-primary btn-lg rounded-circle shadow" onclick="toggleChat()" title="AIアシスタント">
+        <i class="bi bi-chat-dots"></i>
+    </button>
+</div>
+
 <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+<script src="{{ url_for('static', filename='js/ai-features.js') }}"></script>
 {% endblock %}

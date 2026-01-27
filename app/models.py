@@ -102,6 +102,120 @@ class AppSetting(db.Model):
         return setting
 
 
+class TaskReductionTarget(db.Model):
+    """業務名別の削減対象フラグ"""
+    __tablename__ = 'task_reduction_targets'
+
+    id = db.Column(db.Integer, primary_key=True)
+    work_name = db.Column(db.String(500), unique=True, nullable=False)
+    is_reduction_target = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # キャッシュ用クラス変数
+    _cache = None
+
+    @classmethod
+    def clear_cache(cls):
+        """キャッシュをクリア"""
+        cls._cache = None
+
+    @classmethod
+    def get_cached_targets(cls):
+        """削減対象の業務名をキャッシュから取得"""
+        if cls._cache is None:
+            targets = cls.query.filter_by(is_reduction_target=True).all()
+            cls._cache = {t.work_name for t in targets}
+        return cls._cache
+
+    @classmethod
+    def is_work_reduction_target(cls, work_name):
+        """業務名が削減対象かどうか"""
+        if not work_name:
+            return False
+        return work_name in cls.get_cached_targets()
+
+    @classmethod
+    def toggle_target(cls, work_name):
+        """削減対象フラグをトグル"""
+        target = cls.query.filter_by(work_name=work_name).first()
+        if target:
+            target.is_reduction_target = not target.is_reduction_target
+        else:
+            target = cls(work_name=work_name, is_reduction_target=True)
+            db.session.add(target)
+        db.session.commit()
+        cls.clear_cache()
+        return target.is_reduction_target
+
+    @classmethod
+    def set_as_target(cls, work_name):
+        """業務名を削減対象に設定"""
+        target = cls.query.filter_by(work_name=work_name).first()
+        if target:
+            target.is_reduction_target = True
+        else:
+            target = cls(work_name=work_name, is_reduction_target=True)
+            db.session.add(target)
+        db.session.commit()
+        cls.clear_cache()
+
+    @classmethod
+    def remove_from_target(cls, work_name):
+        """業務名を削減対象から解除"""
+        target = cls.query.filter_by(work_name=work_name).first()
+        if target:
+            target.is_reduction_target = False
+            db.session.commit()
+            cls.clear_cache()
+
+    @classmethod
+    def bulk_set_targets(cls, work_names, is_target=True):
+        """複数の業務名を一括で削減対象に設定/解除"""
+        for work_name in work_names:
+            target = cls.query.filter_by(work_name=work_name).first()
+            if target:
+                target.is_reduction_target = is_target
+            else:
+                target = cls(work_name=work_name, is_reduction_target=is_target)
+                db.session.add(target)
+        db.session.commit()
+        cls.clear_cache()
+
+
+class ReductionGoal(db.Model):
+    """削減目標設定"""
+    __tablename__ = 'reduction_goals'
+
+    id = db.Column(db.Integer, primary_key=True)
+    goal_type = db.Column(db.String(20), default='global')  # global, category, staff
+    target_percent = db.Column(db.Float, default=20.0)
+    baseline_hours = db.Column(db.Float, nullable=True)
+    baseline_period_start = db.Column(db.Date, nullable=True)
+    baseline_period_end = db.Column(db.Date, nullable=True)
+    category_id = db.Column(db.Integer, db.ForeignKey('display_categories.id'), nullable=True)
+    staff_name = db.Column(db.String(100), nullable=True)
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    category = db.relationship('DisplayCategory', backref='reduction_goals')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'goal_type': self.goal_type,
+            'target_percent': self.target_percent,
+            'baseline_hours': self.baseline_hours,
+            'baseline_period_start': self.baseline_period_start.strftime('%Y-%m-%d') if self.baseline_period_start else None,
+            'baseline_period_end': self.baseline_period_end.strftime('%Y-%m-%d') if self.baseline_period_end else None,
+            'category_id': self.category_id,
+            'category_name': self.category.name if self.category else None,
+            'staff_name': self.staff_name,
+            'is_active': self.is_active
+        }
+
+
 class WorkRecord(db.Model):
     """業務記録"""
     __tablename__ = 'work_records'
@@ -223,3 +337,357 @@ class CategoryMapping(db.Model):
     def is_target_for_reduction(cls, display_cat):
         """削減対象かどうか（キャッシュ使用）"""
         return display_cat in cls.get_cached_reduction_targets()
+
+
+# ============================================
+# AI機能関連モデル
+# ============================================
+
+class AICategorySuggestion(db.Model):
+    """AIによるカテゴリ提案"""
+    __tablename__ = 'ai_category_suggestions'
+
+    id = db.Column(db.Integer, primary_key=True)
+    work_record_id = db.Column(db.Integer, db.ForeignKey('work_records.id'), nullable=True)
+    category1 = db.Column(db.String(100))
+    category2 = db.Column(db.String(100))
+    work_name = db.Column(db.String(500))
+    suggested_category_id = db.Column(db.Integer, db.ForeignKey('display_categories.id'))
+    confidence_score = db.Column(db.Float, default=0.0)  # 0.0-1.0
+    reasoning = db.Column(db.Text)
+    status = db.Column(db.String(20), default='pending')  # pending, accepted, rejected
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    reviewed_at = db.Column(db.DateTime)
+
+    work_record = db.relationship('WorkRecord', backref='ai_suggestions')
+    suggested_category = db.relationship('DisplayCategory')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'work_record_id': self.work_record_id,
+            'category1': self.category1,
+            'category2': self.category2,
+            'work_name': self.work_name,
+            'suggested_category_id': self.suggested_category_id,
+            'suggested_category_name': self.suggested_category.name if self.suggested_category else None,
+            'confidence_score': self.confidence_score,
+            'reasoning': self.reasoning,
+            'status': self.status,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+
+
+class AIInsightCache(db.Model):
+    """AIインサイトのキャッシュ"""
+    __tablename__ = 'ai_insight_cache'
+
+    id = db.Column(db.Integer, primary_key=True)
+    cache_key = db.Column(db.String(255), unique=True, nullable=False)
+    insight_type = db.Column(db.String(50))  # dashboard, comparison, etc.
+    content = db.Column(db.Text)  # JSON string
+    expires_at = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    @classmethod
+    def get_cached(cls, cache_key):
+        """キャッシュを取得（有効期限チェック付き）"""
+        cache = cls.query.filter_by(cache_key=cache_key).first()
+        if cache and cache.expires_at > datetime.utcnow():
+            import json
+            return json.loads(cache.content)
+        return None
+
+    @classmethod
+    def set_cache(cls, cache_key, insight_type, content, expires_hours=1):
+        """キャッシュを設定"""
+        import json
+        from datetime import timedelta
+
+        # 既存のキャッシュを削除
+        cls.query.filter_by(cache_key=cache_key).delete()
+
+        cache = cls(
+            cache_key=cache_key,
+            insight_type=insight_type,
+            content=json.dumps(content, ensure_ascii=False),
+            expires_at=datetime.utcnow() + timedelta(hours=expires_hours)
+        )
+        db.session.add(cache)
+        db.session.commit()
+        return cache
+
+
+class AIRequestLog(db.Model):
+    """AIリクエストログ（コスト追跡用）"""
+    __tablename__ = 'ai_request_logs'
+
+    id = db.Column(db.Integer, primary_key=True)
+    request_type = db.Column(db.String(50))  # categorization, insight, chat, report
+    input_tokens = db.Column(db.Integer, default=0)
+    output_tokens = db.Column(db.Integer, default=0)
+    model_used = db.Column(db.String(50))
+    cost_estimate = db.Column(db.Float, default=0.0)
+    cached = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    @classmethod
+    def log_request(cls, request_type, input_tokens=0, output_tokens=0, model='', cached=False):
+        """リクエストをログに記録"""
+        # Claude Sonnet の料金: $3/1M input, $15/1M output
+        cost = (input_tokens * 3 / 1_000_000) + (output_tokens * 15 / 1_000_000)
+
+        log = cls(
+            request_type=request_type,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            model_used=model,
+            cost_estimate=cost,
+            cached=cached
+        )
+        db.session.add(log)
+        db.session.commit()
+        return log
+
+
+# ============================================
+# 単位タイプ・サブカテゴリ関連モデル
+# ============================================
+
+class UnitTypeRule(db.Model):
+    """単位タイプ判定ルール（時間制 vs 件数制）"""
+    __tablename__ = 'unit_type_rules'
+
+    id = db.Column(db.Integer, primary_key=True)
+    keyword = db.Column(db.String(100), nullable=False)
+    unit_type = db.Column(db.String(20), default='hours')  # 'hours' or 'count'
+    match_type = db.Column(db.String(20), default='suffix')  # 'suffix', 'contains', 'exact'
+    priority = db.Column(db.Integer, default=10)
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # キャッシュ
+    _cache = None
+
+    @classmethod
+    def clear_cache(cls):
+        cls._cache = None
+
+    @classmethod
+    def get_cached_rules(cls):
+        """キャッシュからルールを取得"""
+        if cls._cache is None:
+            rules = cls.query.filter_by(is_active=True)\
+                .order_by(cls.priority.desc()).all()
+            cls._cache = [
+                {
+                    'keyword': r.keyword,
+                    'unit_type': r.unit_type,
+                    'match_type': r.match_type
+                }
+                for r in rules
+            ]
+        return cls._cache
+
+    @classmethod
+    def get_unit_type(cls, work_name):
+        """業務名から単位タイプを判定
+
+        Returns:
+            'hours' - 時間制（1h, 2hなど）
+            'count' - 件数制（1件, 2件など）
+        """
+        if not work_name:
+            return 'hours'  # デフォルトは時間
+
+        rules = cls.get_cached_rules()
+        work_name_lower = work_name.lower()
+
+        for rule in rules:
+            keyword = rule['keyword'].lower()
+            match_type = rule['match_type']
+
+            if match_type == 'exact' and work_name_lower == keyword:
+                return rule['unit_type']
+            elif match_type == 'suffix' and work_name_lower.endswith(keyword):
+                return rule['unit_type']
+            elif match_type == 'contains' and keyword in work_name_lower:
+                return rule['unit_type']
+
+        return 'hours'  # デフォルト
+
+    @classmethod
+    def seed_default_rules(cls):
+        """デフォルトルールを投入"""
+        default_rules = [
+            # 時間制（MTG、会議、対応系）
+            {'keyword': 'MTG', 'unit_type': 'hours', 'match_type': 'contains', 'priority': 20},
+            {'keyword': '会議', 'unit_type': 'hours', 'match_type': 'contains', 'priority': 20},
+            {'keyword': 'ミーティング', 'unit_type': 'hours', 'match_type': 'contains', 'priority': 20},
+            {'keyword': '打ち合わせ', 'unit_type': 'hours', 'match_type': 'contains', 'priority': 20},
+            {'keyword': '打合せ', 'unit_type': 'hours', 'match_type': 'contains', 'priority': 20},
+            {'keyword': '面談', 'unit_type': 'hours', 'match_type': 'contains', 'priority': 20},
+            {'keyword': '研修', 'unit_type': 'hours', 'match_type': 'contains', 'priority': 20},
+            {'keyword': '移動', 'unit_type': 'hours', 'match_type': 'contains', 'priority': 20},
+            {'keyword': '対応', 'unit_type': 'hours', 'match_type': 'suffix', 'priority': 15},
+
+            # 件数制（入力、作成、チェック系）
+            {'keyword': '入力', 'unit_type': 'count', 'match_type': 'suffix', 'priority': 15},
+            {'keyword': '作成', 'unit_type': 'count', 'match_type': 'suffix', 'priority': 15},
+            {'keyword': 'チェック', 'unit_type': 'count', 'match_type': 'suffix', 'priority': 15},
+            {'keyword': '確認', 'unit_type': 'count', 'match_type': 'suffix', 'priority': 15},
+            {'keyword': '処理', 'unit_type': 'count', 'match_type': 'suffix', 'priority': 15},
+            {'keyword': '登録', 'unit_type': 'count', 'match_type': 'suffix', 'priority': 15},
+            {'keyword': '発注', 'unit_type': 'count', 'match_type': 'suffix', 'priority': 15},
+            {'keyword': '手配', 'unit_type': 'count', 'match_type': 'suffix', 'priority': 15},
+        ]
+
+        for rule_data in default_rules:
+            existing = cls.query.filter_by(keyword=rule_data['keyword']).first()
+            if not existing:
+                rule = cls(**rule_data)
+                db.session.add(rule)
+
+        db.session.commit()
+        cls.clear_cache()
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'keyword': self.keyword,
+            'unit_type': self.unit_type,
+            'match_type': self.match_type,
+            'priority': self.priority,
+            'is_active': self.is_active
+        }
+
+
+class SubCategoryRule(db.Model):
+    """コア業務の細分化ルール"""
+    __tablename__ = 'sub_category_rules'
+
+    id = db.Column(db.Integer, primary_key=True)
+    parent_category_id = db.Column(db.Integer, db.ForeignKey('display_categories.id'), nullable=True)
+    sub_category_name = db.Column(db.String(50), nullable=False)  # 制作系, 専門作業系, etc.
+    keyword = db.Column(db.String(100), nullable=False)
+    match_type = db.Column(db.String(20), default='contains')  # 'suffix', 'contains', 'exact'
+    priority = db.Column(db.Integer, default=10)
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    parent_category = db.relationship('DisplayCategory', backref='sub_category_rules')
+
+    # キャッシュ
+    _cache = None
+
+    @classmethod
+    def clear_cache(cls):
+        cls._cache = None
+
+    @classmethod
+    def get_cached_rules(cls):
+        """キャッシュからルールを取得"""
+        if cls._cache is None:
+            rules = cls.query.filter_by(is_active=True)\
+                .order_by(cls.priority.desc()).all()
+            cls._cache = [
+                {
+                    'keyword': r.keyword,
+                    'sub_category_name': r.sub_category_name,
+                    'match_type': r.match_type,
+                    'parent_category_id': r.parent_category_id
+                }
+                for r in rules
+            ]
+        return cls._cache
+
+    @classmethod
+    def get_sub_category(cls, work_name, parent_category_id=None):
+        """業務名からサブカテゴリを判定
+
+        Returns:
+            サブカテゴリ名（見つからない場合はNone）
+        """
+        if not work_name:
+            return None
+
+        rules = cls.get_cached_rules()
+        work_name_lower = work_name.lower()
+
+        for rule in rules:
+            # 親カテゴリが指定されていれば一致をチェック
+            if parent_category_id and rule['parent_category_id']:
+                if rule['parent_category_id'] != parent_category_id:
+                    continue
+
+            keyword = rule['keyword'].lower()
+            match_type = rule['match_type']
+
+            if match_type == 'exact' and work_name_lower == keyword:
+                return rule['sub_category_name']
+            elif match_type == 'suffix' and work_name_lower.endswith(keyword):
+                return rule['sub_category_name']
+            elif match_type == 'contains' and keyword in work_name_lower:
+                return rule['sub_category_name']
+
+        return None
+
+    @classmethod
+    def seed_default_rules(cls):
+        """デフォルトルールを投入"""
+        # まずコア業務カテゴリを取得
+        core_category = DisplayCategory.query.filter_by(name='コア業務').first()
+        core_id = core_category.id if core_category else None
+
+        default_rules = [
+            # 制作系
+            {'sub_category_name': '制作系', 'keyword': 'ノート作成', 'match_type': 'contains', 'priority': 20},
+            {'sub_category_name': '制作系', 'keyword': '書類作成', 'match_type': 'contains', 'priority': 20},
+            {'sub_category_name': '制作系', 'keyword': '資料作成', 'match_type': 'contains', 'priority': 20},
+            {'sub_category_name': '制作系', 'keyword': '作成', 'match_type': 'suffix', 'priority': 10},
+
+            # 専門作業系
+            {'sub_category_name': '専門作業系', 'keyword': 'Wチェック', 'match_type': 'contains', 'priority': 20},
+            {'sub_category_name': '専門作業系', 'keyword': 'レセチェック', 'match_type': 'contains', 'priority': 20},
+            {'sub_category_name': '専門作業系', 'keyword': 'チェック', 'match_type': 'suffix', 'priority': 10},
+
+            # 顧客対応系
+            {'sub_category_name': '顧客対応系', 'keyword': '電話対応', 'match_type': 'contains', 'priority': 20},
+            {'sub_category_name': '顧客対応系', 'keyword': 'メール対応', 'match_type': 'contains', 'priority': 20},
+            {'sub_category_name': '顧客対応系', 'keyword': 'TEL対応', 'match_type': 'contains', 'priority': 20},
+            {'sub_category_name': '顧客対応系', 'keyword': '対応', 'match_type': 'suffix', 'priority': 10},
+
+            # 技術系
+            {'sub_category_name': '技術系', 'keyword': '施工', 'match_type': 'contains', 'priority': 15},
+            {'sub_category_name': '技術系', 'keyword': '技工', 'match_type': 'contains', 'priority': 15},
+
+            # 入力系
+            {'sub_category_name': '入力系', 'keyword': 'ノート入力', 'match_type': 'contains', 'priority': 20},
+            {'sub_category_name': '入力系', 'keyword': '入力', 'match_type': 'suffix', 'priority': 10},
+        ]
+
+        for rule_data in default_rules:
+            existing = cls.query.filter_by(
+                keyword=rule_data['keyword'],
+                sub_category_name=rule_data['sub_category_name']
+            ).first()
+            if not existing:
+                rule = cls(parent_category_id=core_id, **rule_data)
+                db.session.add(rule)
+
+        db.session.commit()
+        cls.clear_cache()
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'parent_category_id': self.parent_category_id,
+            'parent_category_name': self.parent_category.name if self.parent_category else None,
+            'sub_category_name': self.sub_category_name,
+            'keyword': self.keyword,
+            'match_type': self.match_type,
+            'priority': self.priority,
+            'is_active': self.is_active
+        }

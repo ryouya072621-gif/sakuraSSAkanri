@@ -77,6 +77,88 @@
                     </button>
                 </div>
             </form>
+
+            <!-- 削減目標設定 -->
+            <div class="card mt-4">
+                <div class="card-header bg-danger bg-opacity-10">
+                    <h5 class="mb-0 text-danger"><i class="bi bi-bullseye me-2"></i>削減目標設定</h5>
+                </div>
+                <div class="card-body">
+                    <form id="goalForm">
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label">目標タイプ</label>
+                                <select id="goal_type" class="form-select">
+                                    <option value="global">全体目標</option>
+                                    <option value="category">カテゴリ別</option>
+                                    <option value="staff">スタッフ別</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">削減目標（%）</label>
+                                <div class="input-group">
+                                    <input type="number" id="target_percent" class="form-control" value="20" min="1" max="100">
+                                    <span class="input-group-text">%削減</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="categoryGoalSection" class="mb-3" style="display: none;">
+                            <label class="form-label">対象カテゴリ</label>
+                            <select id="goal_category" class="form-select">
+                                {% for cat in categories %}
+                                <option value="{{ cat.id }}">{{ cat.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div id="staffGoalSection" class="mb-3" style="display: none;">
+                            <label class="form-label">対象スタッフ</label>
+                            <select id="goal_staff" class="form-select">
+                                <option value="">読み込み中...</option>
+                            </select>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label">基準期間（開始）</label>
+                                <input type="date" id="baseline_start" class="form-control">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">基準期間（終了）</label>
+                                <input type="date" id="baseline_end" class="form-control">
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn btn-danger">
+                            <i class="bi bi-bullseye me-1"></i>目標を保存
+                        </button>
+                    </form>
+
+                    <hr class="my-4">
+
+                    <h6 class="mb-3">現在の目標設定</h6>
+                    <div id="goalsTable">
+                        <div class="text-muted">読み込み中...</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 削減対象業務リスト -->
+            <div class="card mt-4">
+                <div class="card-header bg-warning bg-opacity-10">
+                    <h5 class="mb-0 text-warning"><i class="bi bi-exclamation-triangle me-2"></i>削減対象に指定した業務</h5>
+                </div>
+                <div class="card-body">
+                    <p class="small text-muted mb-3">
+                        ダッシュボードのランキングから直接指定した業務のリストです。
+                        これらはカテゴリ設定とは別に、個別に削減対象としてマークされています。
+                    </p>
+                    <div id="taskTargetsTable">
+                        <div class="text-muted">読み込み中...</div>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <div class="col-lg-4">
@@ -98,9 +180,25 @@
                     </p>
 
                     <h6>デフォルト分類カテゴリ</h6>
-                    <p class="small text-muted mb-0">
+                    <p class="small text-muted">
                         キーワードマッチングでどのルールにも該当しなかった業務は、
                         このカテゴリに自動的に分類されます。
+                    </p>
+
+                    <hr>
+
+                    <h6>削減目標設定</h6>
+                    <p class="small text-muted">
+                        <strong>全体目標:</strong> 削減対象業務全体の削減率を設定<br>
+                        <strong>カテゴリ別:</strong> 特定カテゴリの削減率を設定<br>
+                        <strong>スタッフ別:</strong> 特定スタッフの削減率を設定
+                    </p>
+
+                    <h6>削減対象業務</h6>
+                    <p class="small text-muted mb-0">
+                        ダッシュボードのランキングテーブルから、
+                        業務名ごとに削減対象を直接指定できます。
+                        カテゴリ設定とは別に管理されます。
                     </p>
                 </div>
             </div>
@@ -112,11 +210,206 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     loadSettings();
+    loadGoals();
+    loadTaskTargets();
+    loadStaffList();
 
     document.getElementById('settingsForm').addEventListener('submit', function(e) {
         e.preventDefault();
         saveSettings();
     });
+
+    document.getElementById('goalForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        saveGoal();
+    });
+
+    document.getElementById('goal_type').addEventListener('change', function() {
+        const type = this.value;
+        document.getElementById('categoryGoalSection').style.display = type === 'category' ? 'block' : 'none';
+        document.getElementById('staffGoalSection').style.display = type === 'staff' ? 'block' : 'none';
+    });
 });
+
+async function loadStaffList() {
+    try {
+        const response = await fetch('/api/staff');
+        const staff = await response.json();
+        const select = document.getElementById('goal_staff');
+        select.innerHTML = '<option value="">スタッフを選択</option>';
+        staff.forEach(s => {
+            const option = document.createElement('option');
+            option.value = s.name;
+            option.textContent = s.name;
+            select.appendChild(option);
+        });
+    } catch (e) {
+        console.error('Failed to load staff:', e);
+    }
+}
+
+async function loadGoals() {
+    try {
+        const response = await fetch('/api/reduction-goals');
+        const goals = await response.json();
+        const container = document.getElementById('goalsTable');
+
+        if (goals.length === 0) {
+            container.innerHTML = '<div class="text-muted">目標が設定されていません</div>';
+            return;
+        }
+
+        container.innerHTML = `
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th>タイプ</th>
+                        <th>対象</th>
+                        <th>目標</th>
+                        <th>基準期間</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${goals.map(g => `
+                        <tr>
+                            <td><span class="badge bg-${g.goal_type === 'global' ? 'primary' : g.goal_type === 'category' ? 'success' : 'info'}">${g.goal_type === 'global' ? '全体' : g.goal_type === 'category' ? 'カテゴリ' : 'スタッフ'}</span></td>
+                            <td>${g.goal_type === 'category' ? g.category_name : g.goal_type === 'staff' ? g.staff_name : '-'}</td>
+                            <td><strong>${g.target_percent}%</strong>削減</td>
+                            <td>${g.baseline_period_start ? g.baseline_period_start + ' 〜 ' + g.baseline_period_end : '-'}</td>
+                            <td><button class="btn btn-sm btn-outline-danger" onclick="deleteGoal(${g.id})"><i class="bi bi-trash"></i></button></td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        `;
+    } catch (e) {
+        console.error('Failed to load goals:', e);
+        document.getElementById('goalsTable').innerHTML = '<div class="text-danger">読み込みエラー</div>';
+    }
+}
+
+async function saveGoal() {
+    const goalType = document.getElementById('goal_type').value;
+    const targetPercent = parseFloat(document.getElementById('target_percent').value);
+    const baselineStart = document.getElementById('baseline_start').value;
+    const baselineEnd = document.getElementById('baseline_end').value;
+    const categoryId = goalType === 'category' ? document.getElementById('goal_category').value : null;
+    const staffName = goalType === 'staff' ? document.getElementById('goal_staff').value : null;
+
+    try {
+        const response = await fetch('/api/reduction-goals', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                goal_type: goalType,
+                target_percent: targetPercent,
+                baseline_period_start: baselineStart || null,
+                baseline_period_end: baselineEnd || null,
+                category_id: categoryId,
+                staff_name: staffName
+            })
+        });
+
+        if (response.ok) {
+            alert('目標を保存しました');
+            loadGoals();
+        } else {
+            alert('保存に失敗しました');
+        }
+    } catch (e) {
+        console.error('Failed to save goal:', e);
+        alert('エラーが発生しました');
+    }
+}
+
+async function deleteGoal(goalId) {
+    if (!confirm('この目標を削除しますか？')) return;
+
+    try {
+        const response = await fetch(`/api/reduction-goals/${goalId}`, {
+            method: 'DELETE'
+        });
+
+        if (response.ok) {
+            loadGoals();
+        } else {
+            alert('削除に失敗しました');
+        }
+    } catch (e) {
+        console.error('Failed to delete goal:', e);
+        alert('エラーが発生しました');
+    }
+}
+
+async function loadTaskTargets() {
+    try {
+        const response = await fetch('/api/task/reduction-targets');
+        const targets = await response.json();
+        const container = document.getElementById('taskTargetsTable');
+
+        if (targets.length === 0) {
+            container.innerHTML = '<div class="text-muted">個別に指定された削減対象業務はありません</div>';
+            return;
+        }
+
+        container.innerHTML = `
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th>業務名</th>
+                        <th>登録日時</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${targets.map(t => `
+                        <tr>
+                            <td>${escapeHtml(t.work_name)}</td>
+                            <td class="text-muted small">${t.created_at}</td>
+                            <td><button class="btn btn-sm btn-outline-danger" onclick="removeTaskTarget('${escapeHtmlAttr(t.work_name)}')"><i class="bi bi-x-lg"></i></button></td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        `;
+    } catch (e) {
+        console.error('Failed to load task targets:', e);
+        document.getElementById('taskTargetsTable').innerHTML = '<div class="text-danger">読み込みエラー</div>';
+    }
+}
+
+async function removeTaskTarget(workName) {
+    if (!confirm(`「${workName}」を削減対象から解除しますか？`)) return;
+
+    try {
+        const response = await fetch('/api/task/toggle-reduction-target', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ work_name: workName })
+        });
+
+        if (response.ok) {
+            loadTaskTargets();
+        } else {
+            alert('解除に失敗しました');
+        }
+    } catch (e) {
+        console.error('Failed to remove task target:', e);
+        alert('エラーが発生しました');
+    }
+}
+
+function escapeHtml(str) {
+    if (!str) return '';
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+
+function escapeHtmlAttr(str) {
+    if (!str) return '';
+    return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
 </script>
 {% endblock %}

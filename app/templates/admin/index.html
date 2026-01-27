@@ -86,6 +86,54 @@
                 </div>
             </div>
         </div>
+
+        <!-- 単位タイプ設定カード -->
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="rounded-circle bg-warning bg-opacity-10 p-3 me-3">
+                            <i class="bi bi-clock-history text-warning fs-4"></i>
+                        </div>
+                        <div>
+                            <h5 class="mb-0">単位タイプ設定</h5>
+                            <small class="text-muted">時間制 vs 件数制</small>
+                        </div>
+                    </div>
+                    <ul class="list-unstyled mb-3">
+                        <li><i class="bi bi-clock me-2"></i>時間制 (h): MTG、対応系</li>
+                        <li><i class="bi bi-123 me-2"></i>件数制 (件): 入力、作成系</li>
+                    </ul>
+                    <a href="{{ url_for('admin.unit_rules') }}" class="btn btn-outline-warning w-100">
+                        <i class="bi bi-arrow-right me-1"></i>設定を開く
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- サブカテゴリ設定カード -->
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="rounded-circle bg-secondary bg-opacity-10 p-3 me-3">
+                            <i class="bi bi-diagram-3 text-secondary fs-4"></i>
+                        </div>
+                        <div>
+                            <h5 class="mb-0">サブカテゴリ設定</h5>
+                            <small class="text-muted">コア業務の細分化</small>
+                        </div>
+                    </div>
+                    <ul class="list-unstyled mb-3">
+                        <li><i class="bi bi-tools me-2"></i>制作系、専門作業系</li>
+                        <li><i class="bi bi-people me-2"></i>顧客対応系、技術系</li>
+                    </ul>
+                    <a href="{{ url_for('admin.sub_categories') }}" class="btn btn-outline-secondary w-100">
+                        <i class="bi bi-arrow-right me-1"></i>設定を開く
+                    </a>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- 説明セクション -->
