@@ -351,10 +351,19 @@ def chat():
         return jsonify({'error': 'Question required'}), 400
 
     # コンテキストデータを構築
+    trend_data = _get_trend_data(filters)
     context = {
+        'staff_name': filters.get('staff', '全スタッフ'),
+        'department': filters.get('category1', '全部門'),
+        'period': f"{filters.get('start', '開始日')} ~ {filters.get('end', '終了日')}",
         'summary': _get_summary_data(filters),
-        'ranking': _get_ranking_data(filters, limit=5),
-        'categories': [c.name for c in DisplayCategory.query.all()]
+        'ranking': _get_ranking_data(filters, limit=20),
+        'category_breakdown': _get_category_breakdown(filters),
+        'trend_statistics': trend_data.get('statistics', {}),
+        'weekly_trend': _get_weekly_trend(filters),
+        'staff_summary': _get_staff_summary(filters),
+        'reduction_analysis': _get_reduction_analysis(filters),
+        'available_categories': [c.name for c in DisplayCategory.query.all()]
     }
 
     try:
@@ -369,9 +378,19 @@ def chat():
 
     except AIProviderError as e:
         logger.error(f'Chat error: {e}')
+        print(f'[AI ERROR] {e}')  # コンソールにも出力
         return jsonify({
             'error': 'AI機能が一時的に利用できません',
-            'answer': '申し訳ありません。現在AI機能が利用できません。しばらくしてから再度お試しください。'
+            'answer': f'エラー: {str(e)}'
+        }), 503
+    except Exception as e:
+        logger.error(f'Unexpected chat error: {e}')
+        print(f'[UNEXPECTED ERROR] {e}')  # コンソールにも出力
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'error': 'AI機能が一時的に利用できません',
+            'answer': f'予期しないエラー: {str(e)}'
         }), 503
 
 
@@ -470,13 +489,95 @@ def _get_summary_data(params: dict) -> dict:
 
 def _get_trend_data(params: dict) -> dict:
     """推移データを取得"""
-    # 簡略化: 週次データを返す
-    return {'message': 'Trend data placeholder'}
+    query = db.session.query(
+        WorkRecord.work_date,
+        func.sum(WorkRecord.quantity).label('hours')
+    )
+
+    if params.get('category1'):
+        query = query.filter(WorkRecord.category1 == params['category1'])
+    if params.get('staff'):
+        query = query.filter(WorkRecord.staff_name == params['staff'])
+    if params.get('start'):
+        query = query.filter(WorkRecord.work_date >= datetime.strptime(params['start'], '%Y-%m-%d').date())
+    if params.get('end'):
+        query = query.filter(WorkRecord.work_date <= datetime.strptime(params['end'], '%Y-%m-%d').date())
+
+    results = query.group_by(WorkRecord.work_date).order_by(WorkRecord.work_date).all()
+
+    daily_data = [
+        {'date': r.work_date.strftime('%Y-%m-%d'), 'hours': round(r.hours, 1)}
+        for r in results
+    ]
+
+    # 統計情報も計算
+    if daily_data:
+        hours_list = [d['hours'] for d in daily_data]
+        avg_hours = sum(hours_list) / len(hours_list)
+        max_hours = max(hours_list)
+        min_hours = min(hours_list)
+    else:
+        avg_hours = max_hours = min_hours = 0
+
+    return {
+        'daily': daily_data,
+        'statistics': {
+            'average_daily_hours': round(avg_hours, 1),
+            'max_daily_hours': round(max_hours, 1),
+            'min_daily_hours': round(min_hours, 1),
+            'working_days': len(daily_data)
+        }
+    }
 
 
 def _get_alerts_data(params: dict) -> list:
     """アラートデータを取得"""
-    return []
+    alerts = []
+
+    # カテゴリ別の時間を取得
+    query = db.session.query(
+        WorkRecord.category2,
+        WorkRecord.work_name,
+        func.sum(WorkRecord.quantity).label('hours')
+    )
+
+    if params.get('category1'):
+        query = query.filter(WorkRecord.category1 == params['category1'])
+    if params.get('staff'):
+        query = query.filter(WorkRecord.staff_name == params['staff'])
+    if params.get('start'):
+        query = query.filter(WorkRecord.work_date >= datetime.strptime(params['start'], '%Y-%m-%d').date())
+    if params.get('end'):
+        query = query.filter(WorkRecord.work_date <= datetime.strptime(params['end'], '%Y-%m-%d').date())
+
+    results = query.group_by(WorkRecord.category2, WorkRecord.work_name).all()
+
+    # 表示カテゴリごとに集計
+    category_hours = {}
+    for cat2, work_name, hours in results:
+        display_cat = CategoryMapping.auto_categorize(cat2, work_name)
+        category_hours[display_cat] = category_hours.get(display_cat, 0) + (hours or 0)
+
+    total_hours = sum(category_hours.values())
+    if total_hours > 0:
+        for category, hours in category_hours.items():
+            ratio = (hours / total_hours) * 100
+
+            # 「その他」や「不明」が多い場合にアラート
+            if category in ['その他', '不明', 'その他・不明'] and ratio > 20:
+                alerts.append({
+                    'type': 'warning',
+                    'message': f'「{category}」が{ratio:.1f}%を占めています。カテゴリ分類の見直しを検討してください。'
+                })
+
+            # 特定カテゴリが極端に多い場合
+            if ratio > 50:
+                alerts.append({
+                    'type': 'info',
+                    'message': f'「{category}」が業務時間の{ratio:.1f}%を占めています。'
+                })
+
+    return alerts
 
 
 def _get_ranking_data(params: dict, limit: int = 10) -> list:
@@ -509,3 +610,186 @@ def _get_ranking_data(params: dict, limit: int = 10) -> list:
         }
         for r in results
     ]
+
+
+def _get_category_breakdown(params: dict) -> list:
+    """カテゴリ別時間内訳を取得"""
+    query = db.session.query(
+        WorkRecord.category2,
+        WorkRecord.work_name,
+        func.sum(WorkRecord.quantity).label('hours')
+    )
+
+    if params.get('category1'):
+        query = query.filter(WorkRecord.category1 == params['category1'])
+    if params.get('staff'):
+        query = query.filter(WorkRecord.staff_name == params['staff'])
+    if params.get('start'):
+        query = query.filter(WorkRecord.work_date >= datetime.strptime(params['start'], '%Y-%m-%d').date())
+    if params.get('end'):
+        query = query.filter(WorkRecord.work_date <= datetime.strptime(params['end'], '%Y-%m-%d').date())
+
+    results = query.group_by(WorkRecord.category2, WorkRecord.work_name).all()
+
+    # 表示カテゴリごとに集計
+    category_hours = {}
+    for cat2, work_name, hours in results:
+        display_cat = CategoryMapping.auto_categorize(cat2, work_name)
+        category_hours[display_cat] = category_hours.get(display_cat, 0) + (hours or 0)
+
+    total_hours = sum(category_hours.values())
+
+    # 時間順にソート
+    sorted_categories = sorted(category_hours.items(), key=lambda x: x[1], reverse=True)
+
+    return [
+        {
+            'category': cat,
+            'hours': round(hours, 1),
+            'percentage': round(hours / total_hours * 100, 1) if total_hours > 0 else 0
+        }
+        for cat, hours in sorted_categories
+    ]
+
+
+def _get_weekly_trend(params: dict) -> list:
+    """週次トレンドデータを取得"""
+    from datetime import timedelta
+
+    query = db.session.query(
+        WorkRecord.work_date,
+        WorkRecord.category2,
+        WorkRecord.work_name,
+        func.sum(WorkRecord.quantity).label('hours')
+    )
+
+    if params.get('category1'):
+        query = query.filter(WorkRecord.category1 == params['category1'])
+    if params.get('staff'):
+        query = query.filter(WorkRecord.staff_name == params['staff'])
+    if params.get('start'):
+        query = query.filter(WorkRecord.work_date >= datetime.strptime(params['start'], '%Y-%m-%d').date())
+    if params.get('end'):
+        query = query.filter(WorkRecord.work_date <= datetime.strptime(params['end'], '%Y-%m-%d').date())
+
+    results = query.group_by(WorkRecord.work_date, WorkRecord.category2, WorkRecord.work_name).all()
+
+    # 週ごとに集計
+    weekly_data = {}
+    for work_date, cat2, work_name, hours in results:
+        # 週の開始日（月曜日）を計算
+        week_start = work_date - timedelta(days=work_date.weekday())
+        week_key = week_start.strftime('%Y-%m-%d')
+
+        if week_key not in weekly_data:
+            weekly_data[week_key] = {'total': 0, 'categories': {}}
+
+        display_cat = CategoryMapping.auto_categorize(cat2, work_name)
+        weekly_data[week_key]['total'] += hours or 0
+        weekly_data[week_key]['categories'][display_cat] = weekly_data[week_key]['categories'].get(display_cat, 0) + (hours or 0)
+
+    # 直近8週間のみ返す
+    sorted_weeks = sorted(weekly_data.keys(), reverse=True)[:8]
+    return [
+        {
+            'week': week,
+            'total_hours': round(weekly_data[week]['total'], 1),
+            'top_category': max(weekly_data[week]['categories'].items(), key=lambda x: x[1])[0] if weekly_data[week]['categories'] else None
+        }
+        for week in reversed(sorted_weeks)
+    ]
+
+
+def _get_staff_summary(params: dict) -> list:
+    """スタッフ別サマリーを取得"""
+    query = db.session.query(
+        WorkRecord.staff_name,
+        WorkRecord.category2,
+        WorkRecord.work_name,
+        func.sum(WorkRecord.quantity).label('hours')
+    )
+
+    if params.get('category1'):
+        query = query.filter(WorkRecord.category1 == params['category1'])
+    if params.get('start'):
+        query = query.filter(WorkRecord.work_date >= datetime.strptime(params['start'], '%Y-%m-%d').date())
+    if params.get('end'):
+        query = query.filter(WorkRecord.work_date <= datetime.strptime(params['end'], '%Y-%m-%d').date())
+
+    results = query.group_by(WorkRecord.staff_name, WorkRecord.category2, WorkRecord.work_name).all()
+
+    # スタッフごとに集計
+    staff_data = {}
+    for staff_name, cat2, work_name, hours in results:
+        if not staff_name:
+            continue
+        if staff_name not in staff_data:
+            staff_data[staff_name] = {'total': 0, 'core': 0, 'other': 0}
+
+        display_cat = CategoryMapping.auto_categorize(cat2, work_name)
+        staff_data[staff_name]['total'] += hours or 0
+        if display_cat == 'コア業務':
+            staff_data[staff_name]['core'] += hours or 0
+        else:
+            staff_data[staff_name]['other'] += hours or 0
+
+    # 上位10名のみ返す
+    sorted_staff = sorted(staff_data.items(), key=lambda x: x[1]['total'], reverse=True)[:10]
+    return [
+        {
+            'name': name,
+            'total_hours': round(data['total'], 1),
+            'core_ratio': round(data['core'] / data['total'] * 100, 1) if data['total'] > 0 else 0
+        }
+        for name, data in sorted_staff
+    ]
+
+
+def _get_reduction_analysis(params: dict) -> dict:
+    """削減対象業務の分析"""
+    from app.models import TaskReductionTarget
+
+    query = db.session.query(
+        WorkRecord.category2,
+        WorkRecord.work_name,
+        func.sum(WorkRecord.quantity).label('hours')
+    )
+
+    if params.get('category1'):
+        query = query.filter(WorkRecord.category1 == params['category1'])
+    if params.get('staff'):
+        query = query.filter(WorkRecord.staff_name == params['staff'])
+    if params.get('start'):
+        query = query.filter(WorkRecord.work_date >= datetime.strptime(params['start'], '%Y-%m-%d').date())
+    if params.get('end'):
+        query = query.filter(WorkRecord.work_date <= datetime.strptime(params['end'], '%Y-%m-%d').date())
+
+    results = query.group_by(WorkRecord.category2, WorkRecord.work_name).all()
+
+    total_hours = 0
+    reduction_hours = 0
+    reduction_tasks = []
+
+    for cat2, work_name, hours in results:
+        total_hours += hours or 0
+        display_cat = CategoryMapping.auto_categorize(cat2, work_name)
+        is_category_reduction = CategoryMapping.is_target_for_reduction(display_cat)
+        is_task_reduction = TaskReductionTarget.is_work_reduction_target(work_name)
+
+        if is_category_reduction or is_task_reduction:
+            reduction_hours += hours or 0
+            reduction_tasks.append({
+                'work_name': work_name,
+                'hours': round(hours or 0, 1),
+                'reason': 'カテゴリ対象' if is_category_reduction else '業務名対象'
+            })
+
+    # 上位5件のみ
+    reduction_tasks = sorted(reduction_tasks, key=lambda x: x['hours'], reverse=True)[:5]
+
+    return {
+        'total_hours': round(total_hours, 1),
+        'reduction_hours': round(reduction_hours, 1),
+        'reduction_ratio': round(reduction_hours / total_hours * 100, 1) if total_hours > 0 else 0,
+        'top_reduction_tasks': reduction_tasks
+    }
