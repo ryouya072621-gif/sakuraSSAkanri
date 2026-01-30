@@ -543,3 +543,74 @@ def api_test_sub_category():
         'work_name': work_name,
         'sub_category': sub_category or '(なし)'
     })
+
+
+# ============================================
+# データベースマイグレーション
+# ============================================
+
+@bp.route('/api/migrate', methods=['POST'])
+def api_migrate_database():
+    """データベースマイグレーション（新しいテーブルを作成）"""
+    try:
+        # 全てのモデルに基づいてテーブルを作成（既存テーブルはスキップ）
+        db.create_all()
+
+        return jsonify({
+            'success': True,
+            'message': 'データベースマイグレーションが完了しました'
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@bp.route('/migrate')
+def migrate_page():
+    """マイグレーション実行ページ"""
+    return '''
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Database Migration</title>
+        <style>
+            body { font-family: sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; }
+            .btn { padding: 10px 20px; background: #007bff; color: white; border: none; cursor: pointer; border-radius: 5px; }
+            .btn:hover { background: #0056b3; }
+            #result { margin-top: 20px; padding: 15px; border-radius: 5px; display: none; }
+            .success { background: #d4edda; color: #155724; }
+            .error { background: #f8d7da; color: #721c24; }
+        </style>
+    </head>
+    <body>
+        <h1>Database Migration</h1>
+        <p>新しいテーブル（work_project_mapping等）を作成します。</p>
+        <button class="btn" onclick="runMigration()">マイグレーション実行</button>
+        <div id="result"></div>
+        <script>
+            async function runMigration() {
+                const result = document.getElementById('result');
+                result.style.display = 'none';
+                try {
+                    const res = await fetch('/admin/api/migrate', { method: 'POST' });
+                    const data = await res.json();
+                    result.style.display = 'block';
+                    if (data.success) {
+                        result.className = 'success';
+                        result.textContent = data.message;
+                    } else {
+                        result.className = 'error';
+                        result.textContent = 'Error: ' + data.error;
+                    }
+                } catch (e) {
+                    result.style.display = 'block';
+                    result.className = 'error';
+                    result.textContent = 'Error: ' + e.message;
+                }
+            }
+        </script>
+    </body>
+    </html>
+    '''
