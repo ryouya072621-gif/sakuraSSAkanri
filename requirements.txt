@@ -3,3 +3,6 @@ Flask-SQLAlchemy==3.1.1
 openpyxl==3.1.2
 python-dotenv==1.0.0
 anthropic>=0.30.0
+psycopg2-binary==2.9.9
+cloud-sql-python-connector[pg8000]==1.12.1
+pg8000==1.31.2

@@ -2,17 +2,41 @@ import os
 
 basedir = os.path.abspath(os.path.dirname(__file__))
 
+def get_database_url():
+    """データベースURLを取得（Cloud SQL対応）"""
+    # 環境変数で明示的に指定されている場合はそれを使用
+    db_url = os.environ.get('DATABASE_URL')
+    if db_url:
+        return db_url
+
+    # Cloud SQL設定がある場合はPostgreSQLを使用
+    cloud_sql_instance = os.environ.get('CLOUD_SQL_CONNECTION_NAME')
+    if cloud_sql_instance:
+        db_user = os.environ.get('DB_USER', 'postgres')
+        db_pass = os.environ.get('DB_PASSWORD', '')
+        db_name = os.environ.get('DB_NAME', 'ssa')
+        # Cloud Run用Unix socket接続
+        return f"postgresql+pg8000://{db_user}:{db_pass}@/{db_name}?unix_sock=/cloudsql/{cloud_sql_instance}/.s.PGSQL.5432"
+
+    # デフォルトはローカルSQLite
+    return 'sqlite:///' + os.path.join(basedir, 'instance', 'app.db')
+
 class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-secret-key-change-in-production'
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or \
-        'sqlite:///' + os.path.join(basedir, 'instance', 'app.db')
+    SQLALCHEMY_DATABASE_URI = get_database_url()
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-    SQLALCHEMY_ENGINE_OPTIONS = {
-        'pool_size': 10,
-        'pool_timeout': 60,
-        'pool_recycle': 1800,
-        'max_overflow': 20,
-    }
+
+    # SQLite以外の場合のみ接続プール設定を適用
+    _db_url = get_database_url()
+    if not _db_url.startswith('sqlite'):
+        SQLALCHEMY_ENGINE_OPTIONS = {
+            'pool_size': 5,
+            'pool_timeout': 30,
+            'pool_recycle': 1800,
+            'max_overflow': 10,
+        }
+    else:
+        SQLALCHEMY_ENGINE_OPTIONS = {}
     UPLOAD_FOLDER = os.path.join(basedir, 'instance', 'uploads')
     MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50MB max upload
 
