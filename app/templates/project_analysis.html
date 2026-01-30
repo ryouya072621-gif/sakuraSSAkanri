@@ -1,0 +1,329 @@
+{% extends "base.html" %}
+
+{% block title %}プロジェクト別分析{% endblock %}
+
+{% block extra_css %}
+<style>
+.matrix-cell {
+    min-width: 80px;
+    text-align: right;
+}
+.matrix-cell.has-value {
+    background-color: rgba(59, 130, 246, 0.1);
+}
+.matrix-cell.high-value {
+    background-color: rgba(59, 130, 246, 0.3);
+    font-weight: bold;
+}
+.matrix-header {
+    background-color: #f8f9fa;
+    font-weight: bold;
+    position: sticky;
+    top: 0;
+}
+.project-row:hover {
+    background-color: #f0f9ff;
+}
+.task-type-badge {
+    font-size: 0.75rem;
+    padding: 0.2rem 0.5rem;
+}
+.unmapped-badge {
+    background-color: #fef3c7;
+    color: #92400e;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex">
+    <!-- サイドバー -->
+    <div class="sidebar bg-white border-end p-3" style="width: 280px; min-height: 100vh;">
+        <div class="d-flex align-items-center mb-4">
+            <div class="rounded-circle bg-success d-flex align-items-center justify-content-center me-2" style="width: 40px; height: 40px;">
+                <i class="bi bi-diagram-3 text-white"></i>
+            </div>
+            <div>
+                <h5 class="mb-0">プロジェクト別分析</h5>
+                <small class="text-muted">プロジェクト × 作業タイプ</small>
+            </div>
+        </div>
+
+        <div class="mb-4">
+            <label class="form-label fw-bold">分析条件設定</label>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">大分類（部門）</label>
+            <select id="category1Select" class="form-select">
+                <option value="">全部門</option>
+            </select>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">対象スタッフ</label>
+            <select id="staffSelect" class="form-select">
+                <option value="">全スタッフ</option>
+            </select>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">期間指定</label>
+            <input type="date" id="startDate" class="form-control mb-2">
+            <div class="text-center text-muted"><i class="bi bi-arrow-down"></i></div>
+            <input type="date" id="endDate" class="form-control mt-2">
+        </div>
+
+        <div class="d-flex flex-wrap gap-2 mb-4">
+            <button class="btn btn-outline-secondary btn-sm flex-fill" onclick="setDateRange('thisMonth')">今月</button>
+            <button class="btn btn-outline-secondary btn-sm flex-fill" onclick="setDateRange('lastMonth')">先月</button>
+            <button class="btn btn-outline-secondary btn-sm flex-fill" onclick="setDateRange('all')">全期間</button>
+        </div>
+
+        <div class="alert alert-info small">
+            <i class="bi bi-info-circle me-1"></i>
+            AIが業務名から「プロジェクト/クライアント」と「作業タイプ」を自動抽出します。
+        </div>
+
+        <div class="mt-4 d-flex flex-column gap-2">
+            <a href="{{ url_for('main.index') }}" class="btn btn-outline-primary btn-sm w-100">
+                <i class="bi bi-bar-chart me-1"></i>ダッシュボード
+            </a>
+            <a href="{{ url_for('main.staff_comparison') }}" class="btn btn-outline-info btn-sm w-100">
+                <i class="bi bi-people me-1"></i>スタッフ別比較
+            </a>
+        </div>
+    </div>
+
+    <!-- メインコンテンツ -->
+    <div class="main-content flex-grow-1 bg-light p-4" style="min-height: 100vh;">
+        <!-- ヘッダー -->
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div class="d-flex align-items-center gap-3">
+                <h4 class="mb-0">分析ビュー</h4>
+                <div class="btn-group" role="group">
+                    <input type="radio" class="btn-check" name="viewMode" id="viewProject" value="project" checked>
+                    <label class="btn btn-outline-primary" for="viewProject">
+                        <i class="bi bi-building me-1"></i>プロジェクト別
+                    </label>
+                    <input type="radio" class="btn-check" name="viewMode" id="viewTaskType" value="taskType">
+                    <label class="btn btn-outline-primary" for="viewTaskType">
+                        <i class="bi bi-list-task me-1"></i>作業タイプ別
+                    </label>
+                    <input type="radio" class="btn-check" name="viewMode" id="viewMatrix" value="matrix">
+                    <label class="btn btn-outline-primary" for="viewMatrix">
+                        <i class="bi bi-grid-3x3 me-1"></i>マトリクス
+                    </label>
+                </div>
+            </div>
+            <div class="d-flex gap-2">
+                <button class="btn btn-outline-warning" onclick="showUnmappedItems()">
+                    <i class="bi bi-exclamation-triangle me-1"></i>未分類を確認
+                </button>
+                <button class="btn btn-primary" onclick="runProjectExtraction()">
+                    <i class="bi bi-robot me-1"></i>AI抽出を実行
+                </button>
+            </div>
+        </div>
+
+        <!-- KPIカード -->
+        <div class="row g-3 mb-4">
+            <div class="col-md-3">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <div class="text-muted small">プロジェクト数</div>
+                        <div class="h3 mb-0"><span id="projectCount">-</span></div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <div class="text-muted small">総稼働時間</div>
+                        <div class="h3 mb-0"><span id="totalHours">-</span><small class="text-muted">h</small></div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <div class="text-muted small">トッププロジェクト</div>
+                        <div class="h5 mb-0 text-truncate"><span id="topProject">-</span></div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card h-100 border-warning">
+                    <div class="card-body">
+                        <div class="text-warning small">未分類業務</div>
+                        <div class="h3 mb-0 text-warning"><span id="unmappedCount">-</span>件</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- プロジェクト別ビュー -->
+        <div id="projectView">
+            <div class="row g-3 mb-4">
+                <div class="col-md-5">
+                    <div class="card h-100">
+                        <div class="card-header bg-white">
+                            <h6 class="mb-0"><i class="bi bi-pie-chart me-2"></i>プロジェクト別時間配分</h6>
+                        </div>
+                        <div class="card-body">
+                            <canvas id="projectChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-7">
+                    <div class="card h-100">
+                        <div class="card-header bg-white">
+                            <h6 class="mb-0"><i class="bi bi-bar-chart-steps me-2"></i>プロジェクト別時間ランキング</h6>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="table-responsive" style="max-height: 400px;">
+                                <table class="table table-hover mb-0">
+                                    <thead class="table-light sticky-top">
+                                        <tr>
+                                            <th>プロジェクト</th>
+                                            <th class="text-end">時間</th>
+                                            <th>割合</th>
+                                            <th>主な作業</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="projectRankingBody"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 作業タイプ別ビュー -->
+        <div id="taskTypeView" style="display: none;">
+            <div class="row g-3 mb-4">
+                <div class="col-md-5">
+                    <div class="card h-100">
+                        <div class="card-header bg-white">
+                            <h6 class="mb-0"><i class="bi bi-pie-chart me-2"></i>作業タイプ別時間配分</h6>
+                        </div>
+                        <div class="card-body">
+                            <canvas id="taskTypePieChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-7">
+                    <div class="card h-100">
+                        <div class="card-header bg-white">
+                            <h6 class="mb-0"><i class="bi bi-bar-chart me-2"></i>作業タイプ別時間</h6>
+                        </div>
+                        <div class="card-body">
+                            <canvas id="taskTypeChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-header bg-white">
+                    <h6 class="mb-0"><i class="bi bi-list-task me-2"></i>作業タイプ別詳細</h6>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>作業タイプ</th>
+                                    <th class="text-end">時間</th>
+                                    <th>割合</th>
+                                    <th>主なプロジェクト</th>
+                                </tr>
+                            </thead>
+                            <tbody id="taskTypeRankingBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- マトリクスビュー -->
+        <div id="matrixView" style="display: none;">
+            <div class="card">
+                <div class="card-header bg-white">
+                    <h6 class="mb-0"><i class="bi bi-grid-3x3 me-2"></i>プロジェクト × 作業タイプ マトリクス</h6>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
+                        <table class="table table-bordered table-sm mb-0" id="matrixTable">
+                            <thead class="matrix-header">
+                                <tr id="matrixHeaderRow">
+                                    <th class="sticky-top bg-light">プロジェクト</th>
+                                </tr>
+                            </thead>
+                            <tbody id="matrixBody">
+                                <tr><td colspan="10" class="text-center py-4 text-muted">データを読み込み中...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 未分類業務モーダル -->
+<div class="modal fade" id="unmappedModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-exclamation-triangle text-warning me-2"></i>未分類の業務</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted">以下の業務はまだAIによるプロジェクト抽出が行われていません。「AI抽出を実行」ボタンで一括処理できます。</p>
+                <div class="table-responsive" style="max-height: 400px;">
+                    <table class="table table-sm">
+                        <thead class="table-light sticky-top">
+                            <tr>
+                                <th>業務名</th>
+                                <th>部門</th>
+                                <th>中分類</th>
+                                <th class="text-end">合計時間</th>
+                            </tr>
+                        </thead>
+                        <tbody id="unmappedTableBody">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">閉じる</button>
+                <button type="button" class="btn btn-primary" onclick="runProjectExtraction(); bootstrap.Modal.getInstance(document.getElementById('unmappedModal')).hide();">
+                    <i class="bi bi-robot me-1"></i>AI抽出を実行
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- AI抽出進捗モーダル -->
+<div class="modal fade" id="extractionModal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-robot me-2"></i>AI抽出中...</h5>
+            </div>
+            <div class="modal-body text-center py-4">
+                <div class="spinner-border text-primary mb-3" role="status"></div>
+                <p id="extractionStatus">業務名からプロジェクトと作業タイプを抽出しています...</p>
+                <div class="progress" style="height: 20px;">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated" id="extractionProgress" style="width: 0%"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="{{ url_for('static', filename='js/project-analysis.js') }}"></script>
+{% endblock %}

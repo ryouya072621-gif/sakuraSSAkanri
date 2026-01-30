@@ -691,3 +691,99 @@ class SubCategoryRule(db.Model):
             'priority': self.priority,
             'is_active': self.is_active
         }
+
+
+# ============================================
+# プロジェクト・作業タイプマッピング
+# ============================================
+
+class WorkProjectMapping(db.Model):
+    """業務名からAIが抽出したプロジェクト・作業タイプのマッピング"""
+    __tablename__ = 'work_project_mappings'
+
+    id = db.Column(db.Integer, primary_key=True)
+    work_name = db.Column(db.String(500), unique=True, nullable=False)
+    category1 = db.Column(db.String(100))  # 参考情報として保存
+    category2 = db.Column(db.String(100))  # 参考情報として保存
+    project = db.Column(db.String(200))  # AIが抽出したプロジェクト名
+    task_type = db.Column(db.String(50))  # AIが抽出した作業タイプ
+    confidence_score = db.Column(db.Float, default=0.0)
+    is_confirmed = db.Column(db.Boolean, default=False)  # ユーザー確認済みフラグ
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # キャッシュ
+    _cache = None
+
+    __table_args__ = (
+        db.Index('idx_project', 'project'),
+        db.Index('idx_task_type', 'task_type'),
+    )
+
+    @classmethod
+    def clear_cache(cls):
+        cls._cache = None
+
+    @classmethod
+    def get_cached_mappings(cls):
+        """全マッピングをキャッシュから取得"""
+        if cls._cache is None:
+            mappings = cls.query.all()
+            cls._cache = {m.work_name: m for m in mappings}
+        return cls._cache
+
+    @classmethod
+    def get_mapping(cls, work_name):
+        """業務名からマッピングを取得"""
+        mappings = cls.get_cached_mappings()
+        return mappings.get(work_name)
+
+    @classmethod
+    def bulk_upsert(cls, items):
+        """複数のマッピングを一括更新/追加
+
+        items: [{work_name, category1, category2, project, task_type}, ...]
+        """
+        for item in items:
+            existing = cls.query.filter_by(work_name=item['work_name']).first()
+            if existing:
+                existing.project = item.get('project', existing.project)
+                existing.task_type = item.get('task_type', existing.task_type)
+                existing.category1 = item.get('category1', existing.category1)
+                existing.category2 = item.get('category2', existing.category2)
+            else:
+                mapping = cls(
+                    work_name=item['work_name'],
+                    category1=item.get('category1'),
+                    category2=item.get('category2'),
+                    project=item.get('project'),
+                    task_type=item.get('task_type')
+                )
+                db.session.add(mapping)
+        db.session.commit()
+        cls.clear_cache()
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'work_name': self.work_name,
+            'category1': self.category1,
+            'category2': self.category2,
+            'project': self.project,
+            'task_type': self.task_type,
+            'confidence_score': self.confidence_score,
+            'is_confirmed': self.is_confirmed
+        }
+
+
+# 標準作業タイプ一覧
+STANDARD_TASK_TYPES = [
+    'MTG・会議',
+    '資料作成',
+    'データ入力',
+    'チェック・確認',
+    '対応・連絡',
+    '移動・訪問',
+    '管理・調整',
+    'その他'
+]

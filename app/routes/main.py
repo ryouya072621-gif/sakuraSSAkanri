@@ -27,3 +27,12 @@ def staff_comparison():
     if record_count == 0:
         return redirect(url_for('upload.index'))
     return render_template('staff_comparison.html')
+
+
+@bp.route('/project-analysis')
+def project_analysis():
+    """プロジェクト別分析ページ"""
+    record_count = WorkRecord.query.count()
+    if record_count == 0:
+        return redirect(url_for('upload.index'))
+    return render_template('project_analysis.html')

@@ -27,11 +27,13 @@ from .prompts import (
     CHAT_SYSTEM_PROMPT,
     REPORT_SYSTEM_PROMPT,
     TASK_GROUPING_SYSTEM_PROMPT,
+    PROJECT_EXTRACTION_SYSTEM_PROMPT,
     build_categorization_prompt,
     build_insight_prompt,
     build_chat_prompt,
     build_report_prompt,
-    build_task_grouping_prompt
+    build_task_grouping_prompt,
+    build_project_extraction_prompt
 )
 
 logger = logging.getLogger(__name__)
@@ -253,3 +255,39 @@ class AnthropicProvider(AIProvider):
             original_count=original_count,
             grouped_count=len(groups)
         )
+
+    def extract_project_and_task_type(
+        self,
+        work_items: List[Dict[str, str]],
+        existing_projects: List[str] = None
+    ) -> List[Dict[str, str]]:
+        """業務名からプロジェクトと作業タイプを抽出
+
+        Args:
+            work_items: [{'work_name': '...', 'category1': '...', 'category2': '...'}, ...]
+            existing_projects: 既存のプロジェクト名リスト（一貫性のため）
+
+        Returns:
+            [{'work_name': '...', 'project': '...', 'task_type': '...'}, ...]
+        """
+        if not work_items:
+            return []
+
+        user_prompt = build_project_extraction_prompt(work_items, existing_projects)
+        response_text = self._make_request(
+            PROJECT_EXTRACTION_SYSTEM_PROMPT,
+            user_prompt,
+            max_tokens=8192
+        )
+
+        parsed = self._parse_json_response(response_text)
+
+        results = []
+        for item in parsed:
+            results.append({
+                'work_name': item.get('work_name', ''),
+                'project': item.get('project', '社内（一般）'),
+                'task_type': item.get('task_type', 'その他')
+            })
+
+        return results

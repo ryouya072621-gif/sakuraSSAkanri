@@ -7,10 +7,14 @@
 
 # Python pycache:
 __pycache__/
+*.pyc
+*.pyo
+*.pyd
 
 # Virtual env
 venv/
 env/
+.venv/
 
 # Local development
 instance/
@@ -21,6 +25,7 @@ instance/
 .pytest_cache/
 .coverage
 htmlcov/
+tests/
 
 # IDEs
 .vscode/
@@ -28,3 +33,11 @@ htmlcov/
 
 # Documentation
 README.md
+
+# Temp files
+*.ps1
+*.tmp
+*.log
+
+# Node modules (if any)
+node_modules/

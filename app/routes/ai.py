@@ -18,7 +18,8 @@ from sqlalchemy import func
 from app import db
 from app.models import (
     WorkRecord, DisplayCategory, CategoryKeyword, CategoryMapping,
-    AICategorySuggestion, AIInsightCache, AIRequestLog, AppSetting
+    AICategorySuggestion, AIInsightCache, AIRequestLog, AppSetting,
+    WorkProjectMapping, STANDARD_TASK_TYPES
 )
 from app.services import get_ai_provider
 from app.services.ai_base import AIProviderError
@@ -203,6 +204,153 @@ def group_similar_tasks():
         result['method'] = 'local'
 
     return jsonify(result)
+
+
+@bp.route('/extract-projects', methods=['POST'])
+def extract_projects():
+    """
+    業務名からプロジェクト・作業タイプを抽出
+
+    Request body:
+    {
+        "items": [
+            {"work_name": "...", "category1": "...", "category2": "..."},
+            ...
+        ],
+        "save": false  # オプション: trueならDBに保存
+    }
+
+    Response:
+    {
+        "results": [
+            {
+                "work_name": "...",
+                "project": "...",
+                "task_type": "..."
+            },
+            ...
+        ],
+        "saved": false
+    }
+    """
+    data = request.get_json()
+    items = data.get('items', [])
+    save_to_db = data.get('save', False)
+
+    if not items:
+        return jsonify({'error': 'No items provided'}), 400
+
+    max_batch = current_app.config.get('AI_MAX_BATCH_SIZE', 500)
+    if len(items) > max_batch:
+        return jsonify({'error': f'Maximum {max_batch} items per batch'}), 400
+
+    try:
+        # 既存のユニークなプロジェクト名を取得（一貫性のため）
+        existing_projects_query = db.session.query(
+            WorkProjectMapping.project
+        ).filter(
+            WorkProjectMapping.project.isnot(None),
+            WorkProjectMapping.project != ''
+        ).distinct().all()
+        existing_projects = [p[0] for p in existing_projects_query if p[0]]
+
+        logger.info(f"Passing {len(existing_projects)} existing projects as context")
+
+        provider = get_ai_provider()
+        results = provider.extract_project_and_task_type(items, existing_projects)
+
+        # オプション: DBに保存
+        if save_to_db and results:
+            mappings = []
+            for i, result in enumerate(results):
+                item = items[i] if i < len(items) else {}
+                mappings.append({
+                    'work_name': result.get('work_name', ''),
+                    'category1': item.get('category1', ''),
+                    'category2': item.get('category2', ''),
+                    'project': result.get('project', '社内（一般）'),
+                    'task_type': result.get('task_type', 'その他')
+                })
+            WorkProjectMapping.bulk_upsert(mappings)
+
+        return jsonify({
+            'results': results,
+            'saved': save_to_db,
+            'existing_projects_count': len(existing_projects)
+        })
+
+    except AIProviderError as e:
+        logger.error(f'Project extraction error: {e}')
+        return jsonify({
+            'error': 'AI機能が一時的に利用できません',
+            'message': str(e)
+        }), 503
+
+
+@bp.route('/project-mappings')
+def get_project_mappings():
+    """
+    保存済みのプロジェクトマッピングを取得
+
+    Response:
+    {
+        "mappings": [
+            {"work_name": "...", "project": "...", "task_type": "...", "is_confirmed": false},
+            ...
+        ],
+        "total": 100
+    }
+    """
+    mappings = WorkProjectMapping.query.order_by(WorkProjectMapping.created_at.desc()).limit(500).all()
+
+    return jsonify({
+        'mappings': [
+            {
+                'id': m.id,
+                'work_name': m.work_name,
+                'category1': m.category1,
+                'category2': m.category2,
+                'project': m.project,
+                'task_type': m.task_type,
+                'is_confirmed': m.is_confirmed
+            }
+            for m in mappings
+        ],
+        'total': len(mappings)
+    })
+
+
+@bp.route('/project-mappings/<int:mapping_id>', methods=['PUT'])
+def update_project_mapping(mapping_id):
+    """
+    プロジェクトマッピングを更新（ユーザー確認）
+
+    Request body:
+    {
+        "project": "...",
+        "task_type": "...",
+        "is_confirmed": true
+    }
+    """
+    data = request.get_json()
+    mapping = WorkProjectMapping.query.get_or_404(mapping_id)
+
+    if 'project' in data:
+        mapping.project = data['project']
+    if 'task_type' in data:
+        mapping.task_type = data['task_type']
+    if 'is_confirmed' in data:
+        mapping.is_confirmed = data['is_confirmed']
+
+    db.session.commit()
+
+    return jsonify({
+        'id': mapping.id,
+        'work_name': mapping.work_name,
+        'project': mapping.project,
+        'task_type': mapping.task_type,
+        'is_confirmed': mapping.is_confirmed
+    })
 
 
 @bp.route('/categorize/unique-combinations')

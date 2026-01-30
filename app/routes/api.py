@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from flask import Blueprint, jsonify, request, current_app
 from sqlalchemy import func, distinct
 from app import db
-from app.models import WorkRecord, CategoryMapping, DisplayCategory, AppSetting, TaskReductionTarget, ReductionGoal
+from app.models import WorkRecord, CategoryMapping, DisplayCategory, AppSetting, TaskReductionTarget, ReductionGoal, WorkProjectMapping, STANDARD_TASK_TYPES
 from app.services.task_grouper import group_ranking_by_task_group, get_unit_type, get_unit_suffix, get_sub_category
 
 bp = Blueprint('api', __name__, url_prefix='/api')
@@ -890,4 +890,234 @@ def get_staff_comparison():
         'staff': result,
         'categories': list(all_categories),
         'category_colors': category_colors
+    })
+
+
+# ============================================
+# Phase 4: プロジェクト×作業タイプ分析API
+# ============================================
+
+@bp.route('/project-breakdown')
+def get_project_breakdown():
+    """
+    プロジェクト×作業タイプのマトリクス分析データを取得
+
+    Response:
+    {
+        "matrix": {
+            "ベネッセ": {"MTG・会議": 10.5, "資料作成": 5.0, ...},
+            "社内（経理部）": {"データ入力": 20.0, ...},
+            ...
+        },
+        "projects": ["ベネッセ", "社内（経理部）", ...],
+        "task_types": ["MTG・会議", "資料作成", ...],
+        "project_totals": {"ベネッセ": 15.5, ...},
+        "task_type_totals": {"MTG・会議": 30.0, ...},
+        "grand_total": 100.0
+    }
+    """
+    category1 = request.args.get('category1')
+    staff = request.args.get('staff')
+    start_date = request.args.get('start')
+    end_date = request.args.get('end')
+
+    # WorkRecordとWorkProjectMappingを結合してデータを取得
+    query = db.session.query(
+        WorkRecord.work_name,
+        WorkProjectMapping.project,
+        WorkProjectMapping.task_type,
+        func.sum(WorkRecord.quantity).label('hours')
+    ).outerjoin(
+        WorkProjectMapping,
+        WorkRecord.work_name == WorkProjectMapping.work_name
+    )
+
+    if category1:
+        query = query.filter(WorkRecord.category1 == category1)
+    if staff:
+        query = query.filter(WorkRecord.staff_name == staff)
+    if start_date:
+        query = query.filter(WorkRecord.work_date >= datetime.strptime(start_date, '%Y-%m-%d').date())
+    if end_date:
+        query = query.filter(WorkRecord.work_date <= datetime.strptime(end_date, '%Y-%m-%d').date())
+
+    results = query.group_by(
+        WorkRecord.work_name,
+        WorkProjectMapping.project,
+        WorkProjectMapping.task_type
+    ).all()
+
+    # マトリクスを構築
+    matrix = {}
+    project_totals = {}
+    task_type_totals = {}
+    grand_total = 0
+
+    for work_name, project, task_type, hours in results:
+        # マッピングがない場合はデフォルト値
+        proj = project or '未分類'
+        tt = task_type or 'その他'
+
+        if proj not in matrix:
+            matrix[proj] = {}
+
+        matrix[proj][tt] = matrix[proj].get(tt, 0) + (hours or 0)
+        project_totals[proj] = project_totals.get(proj, 0) + (hours or 0)
+        task_type_totals[tt] = task_type_totals.get(tt, 0) + (hours or 0)
+        grand_total += hours or 0
+
+    # プロジェクトを時間順にソート
+    sorted_projects = sorted(project_totals.keys(), key=lambda x: project_totals[x], reverse=True)
+
+    # 作業タイプを時間順にソート
+    sorted_task_types = sorted(task_type_totals.keys(), key=lambda x: task_type_totals[x], reverse=True)
+
+    # 値を丸める
+    for proj in matrix:
+        for tt in matrix[proj]:
+            matrix[proj][tt] = round(matrix[proj][tt], 1)
+
+    return jsonify({
+        'matrix': matrix,
+        'projects': sorted_projects,
+        'task_types': sorted_task_types,
+        'project_totals': {k: round(v, 1) for k, v in project_totals.items()},
+        'task_type_totals': {k: round(v, 1) for k, v in task_type_totals.items()},
+        'grand_total': round(grand_total, 1)
+    })
+
+
+@bp.route('/project-summary')
+def get_project_summary():
+    """
+    プロジェクト別サマリーを取得（上位N件）
+
+    Response:
+    {
+        "projects": [
+            {
+                "name": "ベネッセ",
+                "total_hours": 50.5,
+                "percentage": 25.3,
+                "top_task_type": "MTG・会議",
+                "task_breakdown": {"MTG・会議": 20.0, "資料作成": 15.5, ...}
+            },
+            ...
+        ]
+    }
+    """
+    category1 = request.args.get('category1')
+    staff = request.args.get('staff')
+    start_date = request.args.get('start')
+    end_date = request.args.get('end')
+    limit = int(request.args.get('limit', 10))
+
+    # WorkRecordとWorkProjectMappingを結合
+    query = db.session.query(
+        WorkProjectMapping.project,
+        WorkProjectMapping.task_type,
+        func.sum(WorkRecord.quantity).label('hours')
+    ).outerjoin(
+        WorkProjectMapping,
+        WorkRecord.work_name == WorkProjectMapping.work_name
+    )
+
+    if category1:
+        query = query.filter(WorkRecord.category1 == category1)
+    if staff:
+        query = query.filter(WorkRecord.staff_name == staff)
+    if start_date:
+        query = query.filter(WorkRecord.work_date >= datetime.strptime(start_date, '%Y-%m-%d').date())
+    if end_date:
+        query = query.filter(WorkRecord.work_date <= datetime.strptime(end_date, '%Y-%m-%d').date())
+
+    results = query.group_by(
+        WorkProjectMapping.project,
+        WorkProjectMapping.task_type
+    ).all()
+
+    # プロジェクトごとに集計
+    project_data = {}
+    grand_total = 0
+
+    for project, task_type, hours in results:
+        proj = project or '未分類'
+        tt = task_type or 'その他'
+
+        if proj not in project_data:
+            project_data[proj] = {'total': 0, 'tasks': {}}
+
+        project_data[proj]['total'] += hours or 0
+        project_data[proj]['tasks'][tt] = project_data[proj]['tasks'].get(tt, 0) + (hours or 0)
+        grand_total += hours or 0
+
+    # 結果を構築
+    projects = []
+    for proj, data in sorted(project_data.items(), key=lambda x: x[1]['total'], reverse=True)[:limit]:
+        top_task = max(data['tasks'].items(), key=lambda x: x[1])[0] if data['tasks'] else 'なし'
+        projects.append({
+            'name': proj,
+            'total_hours': round(data['total'], 1),
+            'percentage': round(data['total'] / grand_total * 100, 1) if grand_total > 0 else 0,
+            'top_task_type': top_task,
+            'task_breakdown': {k: round(v, 1) for k, v in data['tasks'].items()}
+        })
+
+    return jsonify({
+        'projects': projects,
+        'grand_total': round(grand_total, 1)
+    })
+
+
+@bp.route('/unmapped-work-items')
+def get_unmapped_work_items():
+    """
+    まだプロジェクトマッピングされていない業務名を取得
+
+    Response:
+    {
+        "items": [
+            {"work_name": "...", "category1": "...", "category2": "...", "total_hours": 10.5},
+            ...
+        ],
+        "total": 50
+    }
+    """
+    category1 = request.args.get('category1')
+    limit = int(request.args.get('limit', 100))
+
+    # マッピングされていない業務名を取得
+    subquery = db.session.query(WorkProjectMapping.work_name)
+
+    query = db.session.query(
+        WorkRecord.work_name,
+        WorkRecord.category1,
+        WorkRecord.category2,
+        func.sum(WorkRecord.quantity).label('total_hours')
+    ).filter(
+        ~WorkRecord.work_name.in_(subquery)
+    )
+
+    if category1:
+        query = query.filter(WorkRecord.category1 == category1)
+
+    results = query.group_by(
+        WorkRecord.work_name,
+        WorkRecord.category1,
+        WorkRecord.category2
+    ).order_by(func.sum(WorkRecord.quantity).desc()).limit(limit).all()
+
+    items = [
+        {
+            'work_name': r.work_name,
+            'category1': r.category1,
+            'category2': r.category2,
+            'total_hours': round(r.total_hours, 1)
+        }
+        for r in results
+    ]
+
+    return jsonify({
+        'items': items,
+        'total': len(items)
     })
