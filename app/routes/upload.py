@@ -65,9 +65,6 @@ def parse_excel_for_preview(filepath):
     unique_combinations = {}
 
     for sheet_name in wb.sheetnames:
-        if '月請求' not in sheet_name:
-            continue
-
         ws = wb[sheet_name]
         rows = list(ws.iter_rows(min_row=2, values_only=True))
 
@@ -126,8 +123,6 @@ def process_excel(filepath):
 
     # まず全シートから日付を収集
     for sheet_name in wb.sheetnames:
-        if '月請求' not in sheet_name:
-            continue
         ws = wb[sheet_name]
         rows = list(ws.iter_rows(min_row=2, values_only=True))
         for row in rows:
@@ -156,11 +151,8 @@ def process_excel(filepath):
     wb.close()
     wb = load_workbook(filepath, read_only=True, data_only=True)
 
-    # 月次シートを処理（SSA〇月請求）
+    # 全シートを処理
     for sheet_name in wb.sheetnames:
-        if '月請求' not in sheet_name:
-            continue
-
         ws = wb[sheet_name]
         rows = list(ws.iter_rows(min_row=2, values_only=True))
 
