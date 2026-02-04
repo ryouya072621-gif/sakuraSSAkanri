@@ -122,10 +122,39 @@ def process_excel(filepath):
     """Excelファイルを処理してDBに登録"""
     wb = load_workbook(filepath, read_only=True, data_only=True)
     total_count = 0
+    all_dates = []
 
-    # 既存データを削除
-    WorkRecord.query.delete()
-    db.session.commit()
+    # まず全シートから日付を収集
+    for sheet_name in wb.sheetnames:
+        if '月請求' not in sheet_name:
+            continue
+        ws = wb[sheet_name]
+        rows = list(ws.iter_rows(min_row=2, values_only=True))
+        for row in rows:
+            if not row[0]:
+                continue
+            work_date = row[0]
+            if isinstance(work_date, datetime):
+                all_dates.append(work_date.date())
+            elif isinstance(work_date, str):
+                try:
+                    all_dates.append(datetime.strptime(work_date, '%Y-%m-%d').date())
+                except ValueError:
+                    continue
+
+    # 該当期間のデータのみ削除（他の月のデータは保持）
+    if all_dates:
+        min_date = min(all_dates)
+        max_date = max(all_dates)
+        WorkRecord.query.filter(
+            WorkRecord.work_date >= min_date,
+            WorkRecord.work_date <= max_date
+        ).delete(synchronize_session=False)
+        db.session.commit()
+
+    # ワークブックを再度開く
+    wb.close()
+    wb = load_workbook(filepath, read_only=True, data_only=True)
 
     # 月次シートを処理（SSA〇月請求）
     for sheet_name in wb.sheetnames:
@@ -249,9 +278,17 @@ def confirm():
     approved_categories = request.get_json() or {}
 
     try:
-        # 既存データを削除
-        WorkRecord.query.delete()
-        db.session.commit()
+        # アップロードデータの日付範囲を取得
+        dates = [datetime.strptime(r['work_date'], '%Y-%m-%d').date() for r in records if r.get('work_date')]
+        if dates:
+            min_date = min(dates)
+            max_date = max(dates)
+            # 該当期間のデータのみ削除（他の月のデータは保持）
+            WorkRecord.query.filter(
+                WorkRecord.work_date >= min_date,
+                WorkRecord.work_date <= max_date
+            ).delete(synchronize_session=False)
+            db.session.commit()
 
         # WorkRecordを保存
         batch = []
