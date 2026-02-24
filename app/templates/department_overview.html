@@ -1,0 +1,303 @@
+{% extends "base.html" %}
+
+{% block title %}部門比較ダッシュボード - 業務分析{% endblock %}
+
+{% block extra_css %}
+<style>
+.rank-S { color: #16a34a; }
+.rank-A { color: #2563eb; }
+.rank-B { color: #ca8a04; }
+.rank-C { color: #dc2626; }
+.rank-badge-S { background: #dcfce7; color: #16a34a; }
+.rank-badge-A { background: #dbeafe; color: #2563eb; }
+.rank-badge-B { background: #fef9c3; color: #ca8a04; }
+.rank-badge-C { background: #fee2e2; color: #dc2626; }
+.dept-card { cursor: pointer; transition: all 0.2s; border: 2px solid transparent; }
+.dept-card:hover { border-color: #6366f1; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+.dept-card.active { border-color: #6366f1; background: #f5f3ff; }
+.kpi-big { font-size: 2rem; font-weight: 700; line-height: 1; }
+.section-title { font-size: 1.1rem; font-weight: 600; border-left: 4px solid #6366f1; padding-left: 12px; }
+#detailSection { display: none; }
+@media print {
+    .no-print { display: none !important; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4 px-4 bg-light" style="min-height: 100vh;">
+    <!-- ヘッダー -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="mb-1"><i class="bi bi-building me-2"></i>部門比較ダッシュボード</h3>
+            <p class="text-muted mb-0">全部門の業務価値を一目で比較。部門をクリックして詳細を確認。</p>
+        </div>
+        <div class="d-flex gap-2 no-print">
+            <div>
+                <input type="date" id="startDate" class="form-control form-control-sm">
+            </div>
+            <span class="align-self-center text-muted">〜</span>
+            <div>
+                <input type="date" id="endDate" class="form-control form-control-sm">
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="loadData()">
+                <i class="bi bi-arrow-clockwise me-1"></i>更新
+            </button>
+            <a href="{{ url_for('main.dashboard') }}" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-arrow-left me-1"></i>ダッシュボードへ
+            </a>
+        </div>
+    </div>
+
+    <!-- 凡例 -->
+    <div class="card mb-4">
+        <div class="card-body py-2 d-flex gap-4 align-items-center">
+            <small class="text-muted fw-bold">価値ランク:</small>
+            <span class="badge rank-badge-S px-3">S: 高価値（売上・顧客直結）</span>
+            <span class="badge rank-badge-A px-3">A: 中価値（業務運営に必要）</span>
+            <span class="badge rank-badge-B px-3">B: 低価値（削減余地あり）</span>
+            <span class="badge rank-badge-C px-3">C: 無駄（即削減すべき）</span>
+        </div>
+    </div>
+
+    <!-- KPIカード -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card h-100">
+                <div class="card-body text-center">
+                    <small class="text-muted">部門数</small>
+                    <div class="kpi-big text-primary" id="kpiDeptCount">-</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card h-100">
+                <div class="card-body text-center">
+                    <small class="text-muted">全体 高価値業務率</small>
+                    <div class="kpi-big rank-S" id="kpiHighValueRatio">-</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card h-100">
+                <div class="card-body text-center">
+                    <small class="text-muted">全体 無駄業務率</small>
+                    <div class="kpi-big rank-C" id="kpiWasteRatio">-</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card h-100">
+                <div class="card-body text-center">
+                    <small class="text-muted">最高効率部門</small>
+                    <div class="kpi-big text-dark" id="kpiBestDept" style="font-size: 1.3rem;">-</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 上段: 全部門比較チャート -->
+    <div class="row g-4 mb-4">
+        <div class="col-lg-8">
+            <div class="card h-100">
+                <div class="card-header bg-white">
+                    <span class="section-title">全部門 価値ランク別 業務時間</span>
+                </div>
+                <div class="card-body">
+                    <canvas id="deptBarChart" height="300"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="card h-100">
+                <div class="card-header bg-white">
+                    <span class="section-title">部門効率スコア ランキング</span>
+                </div>
+                <div class="card-body" id="deptRanking">
+                    <p class="text-muted text-center">読み込み中...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 部門カード一覧（クリックで詳細表示） -->
+    <h5 class="section-title mb-3">部門を選択して詳細を確認</h5>
+    <div class="row g-3 mb-4" id="deptCards">
+        <p class="text-muted text-center">読み込み中...</p>
+    </div>
+
+    <!-- 下段: 個別部門ドリルダウン -->
+    <div id="detailSection">
+        <hr class="my-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h4 class="mb-0">
+                <i class="bi bi-search me-2"></i>
+                <span id="detailDeptName">-</span> の詳細
+            </h4>
+            <button class="btn btn-outline-secondary btn-sm no-print" onclick="closeDetail()">
+                <i class="bi bi-x-lg me-1"></i>閉じる
+            </button>
+        </div>
+
+        <div class="row g-4 mb-4">
+            <!-- 価値ランク円グラフ -->
+            <div class="col-md-4">
+                <div class="card h-100">
+                    <div class="card-header bg-white">
+                        <span class="section-title">価値ランク構成比</span>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="detailPieChart" height="250"></canvas>
+                    </div>
+                </div>
+            </div>
+            <!-- 削減インパクトTOP10 -->
+            <div class="col-md-8">
+                <div class="card h-100">
+                    <div class="card-header bg-white">
+                        <span class="section-title">削減インパクト TOP10（B/Cランク）</span>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="detailReductionChart" height="250"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- スタッフ別構成 -->
+        <div class="card mb-4">
+            <div class="card-header bg-white">
+                <span class="section-title">スタッフ別 価値ランク構成比</span>
+            </div>
+            <div class="card-body">
+                <canvas id="detailStaffChart" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- 月次目標進捗セクション -->
+    <hr class="my-4">
+    <div class="mb-4" id="goalSection" style="display:none;">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+                <h4 class="mb-1"><i class="bi bi-bullseye me-2"></i>月次目標進捗</h4>
+                <p class="text-muted mb-0">Google Sheetsから取得した月次報告書の目標進捗データ</p>
+            </div>
+            <div class="d-flex align-items-center gap-3">
+                <select id="goalMonth" class="form-select form-select-sm" style="width:150px;" onchange="loadGoalData()">
+                    <option value="">最新月</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="row g-4 mb-4">
+            <!-- 部門別目標達成率ランキング -->
+            <div class="col-md-6">
+                <div class="card h-100">
+                    <div class="card-header bg-white">
+                        <span class="section-title">部門別 目標達成率</span>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="goalRankingChart" height="300"></canvas>
+                    </div>
+                </div>
+            </div>
+            <!-- 月次推移 -->
+            <div class="col-md-6">
+                <div class="card h-100">
+                    <div class="card-header bg-white">
+                        <span class="section-title">目標進捗率 月次推移</span>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="goalTrendChart" height="300"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 選択部門の目標詳細 -->
+        <div class="card" id="goalDetailCard" style="display:none;">
+            <div class="card-header bg-white">
+                <span class="section-title" id="goalDetailTitle">部門目標詳細</span>
+            </div>
+            <div class="card-body">
+                <div class="row g-3" id="goalDetailContent"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 業務倍増シミュレーター -->
+    <hr class="my-4">
+    <div class="mb-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+                <h4 class="mb-1"><i class="bi bi-rocket-takeoff me-2"></i>業務倍増シミュレーター</h4>
+                <p class="text-muted mb-0">B/Cランクの業務を削減したら、どれだけ余力が生まれるか試算。</p>
+            </div>
+            <div class="d-flex align-items-center gap-3 no-print">
+                <label class="form-label mb-0 fw-bold">部門:</label>
+                <select id="simDepartment" class="form-select form-select-sm" style="width:200px;" onchange="loadSimulation()">
+                    <option value="">全部門</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="row g-4">
+            <div class="col-md-4">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h6 class="fw-bold mb-3">削減シナリオ設定</h6>
+                        <div class="mb-4">
+                            <label class="form-label d-flex justify-content-between">
+                                <span><span class="badge rank-badge-C me-1">C</span> 無駄 削減率</span>
+                                <strong id="simCLabel">100%</strong>
+                            </label>
+                            <input type="range" class="form-range" id="simCSlider" min="0" max="100" value="100" oninput="updateSimulation()">
+                        </div>
+                        <div class="mb-4">
+                            <label class="form-label d-flex justify-content-between">
+                                <span><span class="badge rank-badge-B me-1">B</span> 低価値 削減率</span>
+                                <strong id="simBLabel">50%</strong>
+                            </label>
+                            <input type="range" class="form-range" id="simBSlider" min="0" max="100" value="50" oninput="updateSimulation()">
+                        </div>
+                        <div class="mb-4">
+                            <label class="form-label d-flex justify-content-between">
+                                <span><span class="badge rank-badge-A me-1">A</span> 中価値 削減率</span>
+                                <strong id="simALabel">0%</strong>
+                            </label>
+                            <input type="range" class="form-range" id="simASlider" min="0" max="100" value="0" oninput="updateSimulation()">
+                        </div>
+                        <hr>
+                        <div class="text-center">
+                            <small class="text-muted">生まれる余力</small>
+                            <div class="kpi-big text-primary" id="simFreedHours">0h</div>
+                            <div class="mt-2">
+                                <small class="text-muted">目標達成率（業務量2倍）</small>
+                                <div class="progress mt-1" style="height: 24px;">
+                                    <div class="progress-bar" id="simProgressBar" role="progressbar" style="width:0%;background:#6366f1;">
+                                        <strong id="simProgressLabel">0%</strong>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-8">
+                <div class="card h-100">
+                    <div class="card-header bg-white">
+                        <span class="section-title">シミュレーション結果</span>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="simWaterfallChart" height="300"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/department-overview.js') }}"></script>
+<script src="{{ url_for('static', filename='js/capacity-simulator.js') }}"></script>
+{% endblock %}

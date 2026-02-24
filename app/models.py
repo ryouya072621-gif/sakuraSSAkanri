@@ -12,11 +12,20 @@ class DisplayCategory(db.Model):
     badge_bg_color = db.Column(db.String(7), default='#f3f4f6')
     badge_text_color = db.Column(db.String(7), default='#374151')
     is_reduction_target = db.Column(db.Boolean, default=False)
+    value_rank = db.Column(db.String(1), default='A')  # S:高価値, A:中価値, B:低価値, C:無駄
     sort_order = db.Column(db.Integer, default=0)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     keywords = db.relationship('CategoryKeyword', backref='display_category', lazy='dynamic', cascade='all, delete-orphan')
+
+    # 価値ランク定義
+    VALUE_RANKS = {
+        'S': {'label': '高価値', 'description': '売上・顧客に直結', 'color': '#16a34a'},
+        'A': {'label': '中価値', 'description': '業務運営に必要', 'color': '#2563eb'},
+        'B': {'label': '低価値', 'description': '削減余地あり', 'color': '#ca8a04'},
+        'C': {'label': '無駄', 'description': '即削減すべき', 'color': '#dc2626'},
+    }
 
     def to_dict(self):
         return {
@@ -26,6 +35,7 @@ class DisplayCategory(db.Model):
             'badge_bg_color': self.badge_bg_color,
             'badge_text_color': self.badge_text_color,
             'is_reduction_target': self.is_reduction_target,
+            'value_rank': self.value_rank or 'A',
             'sort_order': self.sort_order,
             'keyword_count': self.keywords.count()
         }
@@ -773,6 +783,108 @@ class WorkProjectMapping(db.Model):
             'task_type': self.task_type,
             'confidence_score': self.confidence_score,
             'is_confirmed': self.is_confirmed
+        }
+
+
+# ============================================
+# Google Sheets 月次報告書モデル
+# ============================================
+
+class DepartmentSheet(db.Model):
+    """部門シート設定（管理画面で登録）"""
+    __tablename__ = 'department_sheets'
+
+    id = db.Column(db.Integer, primary_key=True)
+    department_name = db.Column(db.String(100), nullable=False)
+    sv_name = db.Column(db.String(50))
+    staff_name = db.Column(db.String(50))
+    spreadsheet_id = db.Column(db.String(200), nullable=False)
+    spreadsheet_url = db.Column(db.String(500))
+    is_active = db.Column(db.Boolean, default=True)
+    last_fetched_at = db.Column(db.DateTime)
+    last_error = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        db.Index('idx_dept_sheet_dept', 'department_name'),
+    )
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'department_name': self.department_name,
+            'sv_name': self.sv_name,
+            'staff_name': self.staff_name,
+            'spreadsheet_id': self.spreadsheet_id,
+            'spreadsheet_url': self.spreadsheet_url,
+            'is_active': self.is_active,
+            'last_fetched_at': self.last_fetched_at.isoformat() if self.last_fetched_at else None,
+            'last_error': self.last_error,
+        }
+
+
+class MonthlyGoal(db.Model):
+    """月次目標データ（Google Sheetsから自動取得）"""
+    __tablename__ = 'monthly_goals'
+
+    id = db.Column(db.Integer, primary_key=True)
+    department_name = db.Column(db.String(100), nullable=False)
+    staff_name = db.Column(db.String(50))
+    year_month = db.Column(db.String(4), nullable=False)
+    goal_index = db.Column(db.Integer, nullable=False)
+    goal_name = db.Column(db.String(500))
+    progress_pct = db.Column(db.Integer, default=0)
+    details = db.Column(db.Text)
+    fetched_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        db.Index('idx_monthly_goal_dept_ym', 'department_name', 'year_month'),
+        db.UniqueConstraint('department_name', 'staff_name', 'year_month', 'goal_index',
+                            name='uq_monthly_goal'),
+    )
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'department_name': self.department_name,
+            'staff_name': self.staff_name,
+            'year_month': self.year_month,
+            'goal_index': self.goal_index,
+            'goal_name': self.goal_name,
+            'progress_pct': self.progress_pct,
+            'details': self.details,
+        }
+
+
+class MonthlyBusinessItem(db.Model):
+    """月次業務項目（Google Sheetsから自動取得）"""
+    __tablename__ = 'monthly_business_items'
+
+    id = db.Column(db.Integer, primary_key=True)
+    department_name = db.Column(db.String(100), nullable=False)
+    staff_name = db.Column(db.String(50))
+    year_month = db.Column(db.String(4), nullable=False)
+    item_index = db.Column(db.Integer, nullable=False)
+    item_name = db.Column(db.String(500))
+    details = db.Column(db.Text)
+    fetched_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        db.Index('idx_monthly_biz_dept_ym', 'department_name', 'year_month'),
+        db.UniqueConstraint('department_name', 'staff_name', 'year_month', 'item_index',
+                            name='uq_monthly_biz_item'),
+    )
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'department_name': self.department_name,
+            'staff_name': self.staff_name,
+            'year_month': self.year_month,
+            'item_index': self.item_index,
+            'item_name': self.item_name,
+            'details': self.details,
         }
 
 

@@ -43,40 +43,71 @@ async function loadAIInsights() {
 
         let html = '';
 
-        // ハイライト
+        // ハイライト（アイコンカード形式）
         if (data.highlights && data.highlights.length > 0) {
-            html += `
-                <div class="mb-3">
-                    <h6 class="text-primary mb-2"><i class="bi bi-star me-1"></i>ハイライト</h6>
-                    <ul class="mb-0 ps-3">
-                        ${data.highlights.map(h => `<li class="small">${escapeHtml(h)}</li>`).join('')}
-                    </ul>
+            html += `<div class="mb-3">
+                <h6 class="text-primary mb-2"><i class="bi bi-star-fill me-1"></i>ハイライト</h6>
+                <div class="d-flex flex-wrap gap-2">
+                    ${data.highlights.map(h => `
+                        <span class="badge bg-primary bg-opacity-10 text-primary border border-primary px-3 py-2">
+                            <i class="bi bi-check-circle me-1"></i>${escapeHtml(h)}
+                        </span>
+                    `).join('')}
                 </div>
-            `;
+            </div>`;
         }
 
-        // 懸念事項
+        // 懸念事項（アラートカード形式）
         if (data.concerns && data.concerns.length > 0) {
-            html += `
-                <div class="mb-3">
-                    <h6 class="text-warning mb-2"><i class="bi bi-exclamation-triangle me-1"></i>注意点</h6>
-                    <ul class="mb-0 ps-3">
-                        ${data.concerns.map(c => `<li class="small">${escapeHtml(c)}</li>`).join('')}
-                    </ul>
+            html += `<div class="mb-3">
+                <h6 class="text-warning mb-2"><i class="bi bi-exclamation-triangle-fill me-1"></i>注意点</h6>
+                <div class="d-flex flex-wrap gap-2">
+                    ${data.concerns.map(c => `
+                        <span class="badge bg-warning bg-opacity-10 text-warning border border-warning px-3 py-2">
+                            <i class="bi bi-exclamation-circle me-1"></i>${escapeHtml(c)}
+                        </span>
+                    `).join('')}
                 </div>
-            `;
+            </div>`;
         }
 
-        // 提案
+        // 提案（インパクト付きカード形式）
         if (data.recommendations && data.recommendations.length > 0) {
-            html += `
-                <div class="mb-2">
-                    <h6 class="text-success mb-2"><i class="bi bi-lightbulb me-1"></i>提案</h6>
-                    <ul class="mb-0 ps-3">
-                        ${data.recommendations.map(r => `<li class="small">${escapeHtml(r)}</li>`).join('')}
-                    </ul>
+            html += `<div class="mb-3">
+                <h6 class="text-success mb-2"><i class="bi bi-lightbulb-fill me-1"></i>提案</h6>
+                <div class="list-group list-group-flush">
+                    ${data.recommendations.map(r => {
+                        const text = typeof r === 'string' ? r : r.text;
+                        const impact = typeof r === 'string' ? '' : r.impact;
+                        const impactBadge = impact === 'HIGH' ? '<span class="badge bg-danger ms-2">HIGH</span>'
+                            : impact === 'MEDIUM' ? '<span class="badge bg-warning text-dark ms-2">MED</span>'
+                            : impact === 'LOW' ? '<span class="badge bg-secondary ms-2">LOW</span>' : '';
+                        return `<div class="list-group-item px-0 py-1 border-0 small">
+                            <i class="bi bi-arrow-right-circle text-success me-1"></i>${escapeHtml(text)}${impactBadge}
+                        </div>`;
+                    }).join('')}
                 </div>
-            `;
+            </div>`;
+        }
+
+        // 削減機会（ミニ棒グラフ形式）
+        if (data.reduction_opportunities && data.reduction_opportunities.length > 0) {
+            const maxHours = Math.max(...data.reduction_opportunities.map(r => r.estimated_hours || 0));
+            html += `<div class="mb-2">
+                <h6 class="text-danger mb-2"><i class="bi bi-scissors me-1"></i>削減候補</h6>
+                ${data.reduction_opportunities.map(r => {
+                    const pct = maxHours > 0 ? (r.estimated_hours / maxHours * 100) : 0;
+                    return `<div class="mb-1">
+                        <div class="d-flex justify-content-between small">
+                            <span>${escapeHtml(r.task)}</span>
+                            <span class="text-muted">${r.estimated_hours}h</span>
+                        </div>
+                        <div class="progress" style="height:6px">
+                            <div class="progress-bar bg-danger" style="width:${pct}%"></div>
+                        </div>
+                    </div>`;
+                }).join('')}
+            </div>`;
         }
 
         if (!html) {

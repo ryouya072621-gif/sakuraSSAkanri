@@ -1,0 +1,296 @@
+{% extends "base.html" %}
+
+{% block title %}Google Sheets連携 - 管理設定{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2><i class="bi bi-file-earmark-spreadsheet me-2"></i>Google Sheets連携</h2>
+            <p class="text-muted mb-0">月次報告書のスプレッドシートを登録し、目標進捗データを自動取得します</p>
+        </div>
+        <div>
+            <a href="{{ url_for('admin.index') }}" class="btn btn-outline-secondary me-2">
+                <i class="bi bi-arrow-left me-1"></i>管理設定に戻る
+            </a>
+            <button class="btn btn-success" onclick="fetchAllSheets()">
+                <i class="bi bi-cloud-download me-1"></i>全件取得
+            </button>
+        </div>
+    </div>
+
+    <!-- ステータスバー -->
+    <div id="statusBar" class="alert d-none mb-4"></div>
+
+    <!-- 登録フォーム -->
+    <div class="card mb-4">
+        <div class="card-header bg-white">
+            <h5 class="mb-0"><i class="bi bi-plus-circle me-2"></i>シート登録</h5>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label">部門名</label>
+                    <input type="text" id="addDeptName" class="form-control" placeholder="西日本【訪問歯科】SV">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">SV名</label>
+                    <input type="text" id="addSvName" class="form-control" placeholder="稲垣明日香">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">スタッフ名</label>
+                    <input type="text" id="addStaffName" class="form-control" placeholder="（SV本人なら空欄）">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">スプレッドシートURL</label>
+                    <input type="text" id="addSheetUrl" class="form-control" placeholder="https://docs.google.com/spreadsheets/d/...">
+                </div>
+                <div class="col-md-1 d-flex align-items-end">
+                    <button class="btn btn-primary w-100" onclick="addSheet()">
+                        <i class="bi bi-plus"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 一括登録 -->
+    <div class="card mb-4">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="bi bi-upload me-2"></i>一括登録（テキスト貼り付け）</h5>
+            <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#bulkSection">
+                <i class="bi bi-chevron-down"></i>
+            </button>
+        </div>
+        <div class="collapse" id="bulkSection">
+            <div class="card-body">
+                <p class="text-muted small">タブ区切りで「部門名 SV名 スタッフ名 URL」を貼り付けてください（ヘッダー行不要）</p>
+                <textarea id="bulkInput" class="form-control mb-3" rows="6" placeholder="西日本【訪問歯科】SV&#9;稲垣明日香&#9;&#9;https://docs.google.com/spreadsheets/d/...&#10;西日本【歯科拠点】SV&#9;播磨未玖&#9;&#9;https://docs.google.com/spreadsheets/d/..."></textarea>
+                <button class="btn btn-primary" onclick="bulkAddSheets()">
+                    <i class="bi bi-cloud-upload me-1"></i>一括登録
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 登録済みシート一覧 -->
+    <div class="card">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="bi bi-list-ul me-2"></i>登録済みシート
+                <span class="badge bg-secondary" id="sheetCount">0</span>
+            </h5>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>部門名</th>
+                            <th>SV</th>
+                            <th>スタッフ</th>
+                            <th>最終取得</th>
+                            <th>ステータス</th>
+                            <th class="text-end">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="sheetsTableBody">
+                        <tr><td colspan="6" class="text-center text-muted py-4">読み込み中...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let sheetsData = [];
+
+async function loadSheets() {
+    try {
+        const res = await fetch('/admin/api/sheets');
+        const data = await res.json();
+        sheetsData = data.sheets || [];
+        renderSheets();
+    } catch (e) {
+        console.error('Error loading sheets:', e);
+    }
+}
+
+function renderSheets() {
+    const tbody = document.getElementById('sheetsTableBody');
+    document.getElementById('sheetCount').textContent = sheetsData.length;
+
+    if (sheetsData.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">シートが登録されていません</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = sheetsData.map(s => {
+        const fetchedAt = s.last_fetched_at
+            ? new Date(s.last_fetched_at).toLocaleString('ja-JP')
+            : '未取得';
+        const statusBadge = s.last_error
+            ? `<span class="badge bg-danger">エラー</span>`
+            : s.last_fetched_at
+                ? `<span class="badge bg-success">取得済</span>`
+                : `<span class="badge bg-secondary">未取得</span>`;
+        const activeClass = s.is_active ? '' : 'text-muted';
+
+        return `<tr class="${activeClass}">
+            <td>${escapeHtml(s.department_name)}</td>
+            <td>${escapeHtml(s.sv_name || '')}</td>
+            <td>${escapeHtml(s.staff_name || '(SV)')}</td>
+            <td class="small">${fetchedAt}</td>
+            <td>${statusBadge}${s.last_error ? `<br><small class="text-danger">${escapeHtml(s.last_error).substring(0, 50)}</small>` : ''}</td>
+            <td class="text-end">
+                <button class="btn btn-sm btn-outline-primary me-1" onclick="fetchSingleSheet(${s.id})" title="取得">
+                    <i class="bi bi-cloud-download"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-danger" onclick="deleteSheet(${s.id})" title="削除">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </td>
+        </tr>`;
+    }).join('');
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+async function addSheet() {
+    const data = {
+        department_name: document.getElementById('addDeptName').value.trim(),
+        sv_name: document.getElementById('addSvName').value.trim(),
+        staff_name: document.getElementById('addStaffName').value.trim(),
+        spreadsheet_url: document.getElementById('addSheetUrl').value.trim(),
+    };
+
+    if (!data.department_name || !data.spreadsheet_url) {
+        showStatus('部門名とURLは必須です', 'warning');
+        return;
+    }
+
+    try {
+        const res = await fetch('/admin/api/sheets', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data),
+        });
+        const result = await res.json();
+        if (result.success) {
+            showStatus('シートを登録しました', 'success');
+            document.getElementById('addDeptName').value = '';
+            document.getElementById('addSvName').value = '';
+            document.getElementById('addStaffName').value = '';
+            document.getElementById('addSheetUrl').value = '';
+            loadSheets();
+        } else {
+            showStatus(result.error, 'danger');
+        }
+    } catch (e) {
+        showStatus('エラー: ' + e.message, 'danger');
+    }
+}
+
+async function bulkAddSheets() {
+    const text = document.getElementById('bulkInput').value.trim();
+    if (!text) return;
+
+    const lines = text.split('\n').filter(l => l.trim());
+    const items = lines.map(line => {
+        const parts = line.split('\t');
+        return {
+            department_name: (parts[0] || '').trim(),
+            sv_name: (parts[1] || '').trim(),
+            staff_name: (parts[2] || '').trim(),
+            spreadsheet_url: (parts[3] || '').trim(),
+        };
+    }).filter(item => item.department_name && item.spreadsheet_url);
+
+    if (items.length === 0) {
+        showStatus('有効なデータがありません', 'warning');
+        return;
+    }
+
+    try {
+        const res = await fetch('/admin/api/sheets/bulk', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({items}),
+        });
+        const result = await res.json();
+        if (result.success) {
+            showStatus(`${result.added}件を新規登録（全${result.total}件処理）`, 'success');
+            document.getElementById('bulkInput').value = '';
+            loadSheets();
+        } else {
+            showStatus(result.error, 'danger');
+        }
+    } catch (e) {
+        showStatus('エラー: ' + e.message, 'danger');
+    }
+}
+
+async function fetchSingleSheet(id) {
+    showStatus('<span class="spinner-border spinner-border-sm me-2"></span>データ取得中...', 'info');
+    try {
+        const res = await fetch(`/admin/api/sheets/${id}/fetch`, {method: 'POST'});
+        const data = await res.json();
+        if (data.success) {
+            const r = data.result;
+            showStatus(
+                `取得完了: ${r.tabs_found}シート処理、目標${r.goals_saved}件、業務${r.items_saved}件` +
+                (r.errors.length ? ` (エラー${r.errors.length}件)` : ''),
+                r.errors.length ? 'warning' : 'success'
+            );
+        } else {
+            showStatus('取得エラー: ' + data.error, 'danger');
+        }
+        loadSheets();
+    } catch (e) {
+        showStatus('エラー: ' + e.message, 'danger');
+    }
+}
+
+async function fetchAllSheets() {
+    showStatus('<span class="spinner-border spinner-border-sm me-2"></span>全シート取得中...（時間がかかる場合があります）', 'info');
+    try {
+        const res = await fetch('/admin/api/sheets/fetch-all', {method: 'POST'});
+        const data = await res.json();
+        if (data.success) {
+            showStatus(
+                `取得完了: ${data.sheets_processed}シート処理、目標${data.total_goals}件、業務${data.total_items}件` +
+                (data.errors.length ? ` (エラー${data.errors.length}件)` : ''),
+                data.errors.length ? 'warning' : 'success'
+            );
+        } else {
+            showStatus('取得エラー: ' + data.error, 'danger');
+        }
+        loadSheets();
+    } catch (e) {
+        showStatus('エラー: ' + e.message, 'danger');
+    }
+}
+
+async function deleteSheet(id) {
+    if (!confirm('このシートを削除しますか？')) return;
+    try {
+        await fetch(`/admin/api/sheets/${id}`, {method: 'DELETE'});
+        loadSheets();
+    } catch (e) {
+        showStatus('削除エラー: ' + e.message, 'danger');
+    }
+}
+
+function showStatus(message, type) {
+    const bar = document.getElementById('statusBar');
+    bar.className = `alert alert-${type}`;
+    bar.innerHTML = message;
+}
+
+document.addEventListener('DOMContentLoaded', loadSheets);
+</script>
+{% endblock %}

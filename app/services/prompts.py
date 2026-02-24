@@ -94,11 +94,13 @@ INSIGHT_SYSTEM_PROMPT = """あなたは業務分析のエキスパートです�
 1. 重要なパターンや傾向
 2. 注意が必要な異常値
 3. 具体的で実行可能な改善提案
+4. 業務量倍増に向けた削減候補の特定
 
 出力ルール:
-- 簡潔に（各項目2-3点）
+- 簡潔に（各項目2-3点、1項目20文字以内推奨）
 - 数値を含める（割合、時間など）
-- 業務改善に直結する提案を優先"""
+- 業務改善に直結する提案を優先
+- インパクトの大きさを HIGH/MEDIUM/LOW で示す"""
 
 
 def build_insight_prompt(
@@ -127,10 +129,21 @@ def build_insight_prompt(
 {{
   "highlights": ["ポジティブな発見1", "ポジティブな発見2"],
   "concerns": ["懸念事項1"],
-  "recommendations": ["具体的な提案1", "具体的な提案2", "具体的な提案3"]
+  "recommendations": [
+    {{"text": "具体的な提案1", "impact": "HIGH"}},
+    {{"text": "具体的な提案2", "impact": "MEDIUM"}},
+    {{"text": "具体的な提案3", "impact": "LOW"}}
+  ],
+  "reduction_opportunities": [
+    {{"task": "削減候補の業務名", "estimated_hours": 10.0, "reason": "理由（10文字以内）"}}
+  ]
 }}
 
-JSON形式のみを出力してください。"""
+重要:
+- highlightsとconcernsは短い文字列（20文字以内が理想）
+- recommendationsは具体的で実行可能なアクション + インパクト度
+- reduction_opportunitiesは削減余地のある業務TOP3-5
+- JSON形式のみを出力してください。"""
 
 
 # ============================================

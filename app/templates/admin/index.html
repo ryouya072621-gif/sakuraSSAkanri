@@ -134,6 +134,30 @@
                 </div>
             </div>
         </div>
+
+        <!-- Google Sheets連携カード -->
+        <div class="col-md-4">
+            <div class="card h-100 border-success">
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="rounded-circle bg-success bg-opacity-10 p-3 me-3">
+                            <i class="bi bi-file-earmark-spreadsheet text-success fs-4"></i>
+                        </div>
+                        <div>
+                            <h5 class="mb-0">Google Sheets連携</h5>
+                            <small class="text-muted">月次報告書の自動取得</small>
+                        </div>
+                    </div>
+                    <ul class="list-unstyled mb-3">
+                        <li><i class="bi bi-cloud-download text-success me-2"></i>月次報告書を自動取得</li>
+                        <li><i class="bi bi-bar-chart me-2"></i>目標進捗をダッシュボードに統合</li>
+                    </ul>
+                    <a href="{{ url_for('admin.sheets') }}" class="btn btn-outline-success w-100">
+                        <i class="bi bi-arrow-right me-1"></i>設定を開く
+                    </a>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- 説明セクション -->

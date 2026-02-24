@@ -1121,3 +1121,363 @@ def get_unmapped_work_items():
         'items': items,
         'total': len(items)
     })
+
+
+# ============================================
+# 部門比較・価値ランク分析 API
+# ============================================
+
+@bp.route('/analytics/value-breakdown')
+def get_value_breakdown():
+    """価値ランク別の業務時間集計"""
+    category1 = request.args.get('category1')
+    staff = request.args.get('staff')
+    start_date = request.args.get('start')
+    end_date = request.args.get('end')
+
+    # category2+work_nameごとの時間を取得
+    query = db.session.query(
+        WorkRecord.category2,
+        WorkRecord.work_name,
+        func.sum(WorkRecord.quantity).label('hours')
+    )
+    if category1:
+        query = query.filter(WorkRecord.category1 == category1)
+    if staff:
+        query = query.filter(WorkRecord.staff_name == staff)
+    if start_date:
+        query = query.filter(WorkRecord.work_date >= datetime.strptime(start_date, '%Y-%m-%d').date())
+    if end_date:
+        query = query.filter(WorkRecord.work_date <= datetime.strptime(end_date, '%Y-%m-%d').date())
+
+    results = query.group_by(WorkRecord.category2, WorkRecord.work_name).all()
+
+    # カテゴリ→価値ランクのマッピングを取得
+    categories = DisplayCategory.query.all()
+    cat_rank_map = {c.name: (c.value_rank or 'A') for c in categories}
+    cat_color_map = {c.name: c.color for c in categories}
+
+    # 価値ランク別に集計
+    rank_data = {'S': 0, 'A': 0, 'B': 0, 'C': 0}
+    rank_details = {'S': [], 'A': [], 'B': [], 'C': []}
+
+    CategoryMapping.clear_cache()
+    for cat2, work_name, hours in results:
+        display_cat = CategoryMapping.auto_categorize(cat2, work_name)
+        rank = cat_rank_map.get(display_cat, 'A')
+        h = hours or 0
+        rank_data[rank] += h
+        rank_details[rank].append({
+            'category': display_cat,
+            'work_name': work_name,
+            'hours': round(h, 1)
+        })
+
+    # 各ランクのdetailsを時間降順でソート、上位10件に絞る
+    for rank in rank_details:
+        rank_details[rank].sort(key=lambda x: x['hours'], reverse=True)
+        rank_details[rank] = rank_details[rank][:10]
+
+    total = sum(rank_data.values())
+    rank_labels = {
+        'S': '高価値', 'A': '中価値', 'B': '低価値', 'C': '無駄'
+    }
+    rank_colors = {
+        'S': '#16a34a', 'A': '#2563eb', 'B': '#ca8a04', 'C': '#dc2626'
+    }
+
+    return jsonify({
+        'ranks': [
+            {
+                'rank': r,
+                'label': rank_labels[r],
+                'hours': round(rank_data[r], 1),
+                'percentage': round(rank_data[r] / total * 100, 1) if total > 0 else 0,
+                'color': rank_colors[r],
+                'top_items': rank_details[r]
+            }
+            for r in ['S', 'A', 'B', 'C']
+        ],
+        'total_hours': round(total, 1)
+    })
+
+
+@bp.route('/analytics/department-comparison')
+def get_department_comparison():
+    """全部門比較データ"""
+    start_date = request.args.get('start')
+    end_date = request.args.get('end')
+
+    # 部門一覧を取得
+    dept_query = db.session.query(WorkRecord.category1).distinct()
+    departments = [d.category1 for d in dept_query.all() if d.category1]
+
+    # カテゴリ→価値ランクのマッピング
+    categories = DisplayCategory.query.all()
+    cat_rank_map = {c.name: (c.value_rank or 'A') for c in categories}
+
+    CategoryMapping.clear_cache()
+
+    dept_data = []
+    for dept in departments:
+        query = db.session.query(
+            WorkRecord.category2,
+            WorkRecord.work_name,
+            func.sum(WorkRecord.quantity).label('hours')
+        ).filter(WorkRecord.category1 == dept)
+
+        if start_date:
+            query = query.filter(WorkRecord.work_date >= datetime.strptime(start_date, '%Y-%m-%d').date())
+        if end_date:
+            query = query.filter(WorkRecord.work_date <= datetime.strptime(end_date, '%Y-%m-%d').date())
+
+        results = query.group_by(WorkRecord.category2, WorkRecord.work_name).all()
+
+        rank_hours = {'S': 0, 'A': 0, 'B': 0, 'C': 0}
+        for cat2, work_name, hours in results:
+            display_cat = CategoryMapping.auto_categorize(cat2, work_name)
+            rank = cat_rank_map.get(display_cat, 'A')
+            rank_hours[rank] += hours or 0
+
+        total = sum(rank_hours.values())
+        s_ratio = round(rank_hours['S'] / total * 100, 1) if total > 0 else 0
+        waste_ratio = round((rank_hours['B'] + rank_hours['C']) / total * 100, 1) if total > 0 else 0
+
+        # スタッフ数
+        staff_count = db.session.query(func.count(distinct(WorkRecord.staff_name))).filter(
+            WorkRecord.category1 == dept
+        ).scalar() or 0
+
+        dept_data.append({
+            'department': dept,
+            'total_hours': round(total, 1),
+            'staff_count': staff_count,
+            'rank_hours': {k: round(v, 1) for k, v in rank_hours.items()},
+            'high_value_ratio': s_ratio,
+            'waste_ratio': waste_ratio,
+            'efficiency_score': round(s_ratio - waste_ratio * 0.5, 1)
+        })
+
+    # 効率スコア降順でソート
+    dept_data.sort(key=lambda x: x['efficiency_score'], reverse=True)
+
+    return jsonify({
+        'departments': dept_data,
+        'rank_colors': {'S': '#16a34a', 'A': '#2563eb', 'B': '#ca8a04', 'C': '#dc2626'},
+        'rank_labels': {'S': '高価値', 'A': '中価値', 'B': '低価値', 'C': '無駄'}
+    })
+
+
+@bp.route('/analytics/department-detail')
+def get_department_detail():
+    """個別部門の詳細データ"""
+    department = request.args.get('department')
+    start_date = request.args.get('start')
+    end_date = request.args.get('end')
+
+    if not department:
+        return jsonify({'error': 'department parameter is required'}), 400
+
+    # カテゴリ→価値ランク
+    categories = DisplayCategory.query.all()
+    cat_rank_map = {c.name: (c.value_rank or 'A') for c in categories}
+    cat_color_map = {c.name: c.color for c in categories}
+
+    CategoryMapping.clear_cache()
+
+    # 業務名別の集計
+    query = db.session.query(
+        WorkRecord.category2,
+        WorkRecord.work_name,
+        func.sum(WorkRecord.quantity).label('hours')
+    ).filter(WorkRecord.category1 == department)
+
+    if start_date:
+        query = query.filter(WorkRecord.work_date >= datetime.strptime(start_date, '%Y-%m-%d').date())
+    if end_date:
+        query = query.filter(WorkRecord.work_date <= datetime.strptime(end_date, '%Y-%m-%d').date())
+
+    results = query.group_by(WorkRecord.category2, WorkRecord.work_name).all()
+
+    # 価値ランク別集計 + 削減インパクトTOP10
+    rank_hours = {'S': 0, 'A': 0, 'B': 0, 'C': 0}
+    reduction_candidates = []
+
+    for cat2, work_name, hours in results:
+        display_cat = CategoryMapping.auto_categorize(cat2, work_name)
+        rank = cat_rank_map.get(display_cat, 'A')
+        h = hours or 0
+        rank_hours[rank] += h
+
+        if rank in ('B', 'C'):
+            reduction_candidates.append({
+                'work_name': work_name,
+                'category': display_cat,
+                'rank': rank,
+                'hours': round(h, 1)
+            })
+
+    reduction_candidates.sort(key=lambda x: x['hours'], reverse=True)
+
+    # スタッフ別構成
+    staff_query = db.session.query(
+        WorkRecord.staff_name,
+        WorkRecord.category2,
+        WorkRecord.work_name,
+        func.sum(WorkRecord.quantity).label('hours')
+    ).filter(WorkRecord.category1 == department)
+
+    if start_date:
+        staff_query = staff_query.filter(WorkRecord.work_date >= datetime.strptime(start_date, '%Y-%m-%d').date())
+    if end_date:
+        staff_query = staff_query.filter(WorkRecord.work_date <= datetime.strptime(end_date, '%Y-%m-%d').date())
+
+    staff_results = staff_query.group_by(
+        WorkRecord.staff_name, WorkRecord.category2, WorkRecord.work_name
+    ).all()
+
+    staff_data = {}
+    for staff_name, cat2, work_name, hours in staff_results:
+        if staff_name not in staff_data:
+            staff_data[staff_name] = {'S': 0, 'A': 0, 'B': 0, 'C': 0}
+        display_cat = CategoryMapping.auto_categorize(cat2, work_name)
+        rank = cat_rank_map.get(display_cat, 'A')
+        staff_data[staff_name][rank] += hours or 0
+
+    staff_comparison = [
+        {
+            'name': name,
+            'rank_hours': {k: round(v, 1) for k, v in ranks.items()},
+            'total': round(sum(ranks.values()), 1)
+        }
+        for name, ranks in sorted(staff_data.items(), key=lambda x: sum(x[1].values()), reverse=True)
+    ]
+
+    total = sum(rank_hours.values())
+
+    return jsonify({
+        'department': department,
+        'total_hours': round(total, 1),
+        'rank_hours': {k: round(v, 1) for k, v in rank_hours.items()},
+        'reduction_candidates': reduction_candidates[:10],
+        'staff_comparison': staff_comparison,
+        'rank_colors': {'S': '#16a34a', 'A': '#2563eb', 'B': '#ca8a04', 'C': '#dc2626'}
+    })
+
+
+@bp.route('/analytics/capacity-simulation')
+def get_capacity_simulation():
+    """業務倍増シミュレーション用データ"""
+    category1 = request.args.get('category1')
+    start_date = request.args.get('start')
+    end_date = request.args.get('end')
+
+    # カテゴリ→価値ランク
+    categories = DisplayCategory.query.all()
+    cat_rank_map = {c.name: (c.value_rank or 'A') for c in categories}
+
+    CategoryMapping.clear_cache()
+
+    query = db.session.query(
+        WorkRecord.category2,
+        WorkRecord.work_name,
+        func.sum(WorkRecord.quantity).label('hours')
+    )
+    if category1:
+        query = query.filter(WorkRecord.category1 == category1)
+    if start_date:
+        query = query.filter(WorkRecord.work_date >= datetime.strptime(start_date, '%Y-%m-%d').date())
+    if end_date:
+        query = query.filter(WorkRecord.work_date <= datetime.strptime(end_date, '%Y-%m-%d').date())
+
+    results = query.group_by(WorkRecord.category2, WorkRecord.work_name).all()
+
+    # ランク別に業務をリスト化
+    rank_items = {'S': [], 'A': [], 'B': [], 'C': []}
+    for cat2, work_name, hours in results:
+        display_cat = CategoryMapping.auto_categorize(cat2, work_name)
+        rank = cat_rank_map.get(display_cat, 'A')
+        rank_items[rank].append({
+            'work_name': work_name,
+            'category': display_cat,
+            'hours': round(hours or 0, 1)
+        })
+
+    # 各ランクを時間降順ソート
+    for rank in rank_items:
+        rank_items[rank].sort(key=lambda x: x['hours'], reverse=True)
+
+    rank_totals = {r: round(sum(i['hours'] for i in items), 1) for r, items in rank_items.items()}
+    total = sum(rank_totals.values())
+
+    return jsonify({
+        'total_hours': round(total, 1),
+        'rank_totals': rank_totals,
+        'rank_items': {r: items[:20] for r, items in rank_items.items()},
+        'rank_colors': {'S': '#16a34a', 'A': '#2563eb', 'B': '#ca8a04', 'C': '#dc2626'},
+        'rank_labels': {'S': '高価値', 'A': '中価値', 'B': '低価値', 'C': '無駄'}
+    })
+
+
+# ============================================
+# 月次目標進捗API
+# ============================================
+
+@bp.route('/analytics/monthly-goals')
+def get_monthly_goals():
+    """部門別の月次目標進捗データ"""
+    from app.models import MonthlyGoal
+
+    department = request.args.get('department')
+    year_month = request.args.get('year_month')
+
+    query = MonthlyGoal.query
+
+    if department:
+        query = query.filter_by(department_name=department)
+    if year_month:
+        query = query.filter_by(year_month=year_month)
+
+    goals = query.order_by(
+        MonthlyGoal.department_name,
+        MonthlyGoal.year_month.desc(),
+        MonthlyGoal.goal_index
+    ).all()
+
+    # 部門別に集約
+    dept_goals = {}
+    for g in goals:
+        dept = g.department_name
+        if dept not in dept_goals:
+            dept_goals[dept] = {'months': {}, 'avg_progress': 0}
+
+        ym = g.year_month
+        if ym not in dept_goals[dept]['months']:
+            dept_goals[dept]['months'][ym] = []
+        dept_goals[dept]['months'][ym].append(g.to_dict())
+
+    # 部門ごとの平均進捗率を計算（最新月）
+    for dept, data in dept_goals.items():
+        if data['months']:
+            latest_ym = max(data['months'].keys())
+            latest_goals = data['months'][latest_ym]
+            valid_goals = [g for g in latest_goals if g['progress_pct'] and g['progress_pct'] > 0]
+            if valid_goals:
+                data['avg_progress'] = round(
+                    sum(g['progress_pct'] for g in valid_goals) / len(valid_goals)
+                )
+            data['latest_month'] = latest_ym
+
+    # 月別推移データ（全部門）
+    all_months = sorted(set(g.year_month for g in goals))
+    trend_data = {}
+    for ym in all_months:
+        ym_goals = [g for g in goals if g.year_month == ym and g.progress_pct and g.progress_pct > 0]
+        if ym_goals:
+            trend_data[ym] = round(sum(g.progress_pct for g in ym_goals) / len(ym_goals))
+
+    return jsonify({
+        'departments': dept_goals,
+        'trend': trend_data,
+        'months': all_months,
+    })

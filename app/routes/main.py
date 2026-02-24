@@ -36,3 +36,12 @@ def project_analysis():
     if record_count == 0:
         return redirect(url_for('upload.index'))
     return render_template('project_analysis.html')
+
+
+@bp.route('/department-overview')
+def department_overview():
+    """部門比較ダッシュボード"""
+    record_count = WorkRecord.query.count()
+    if record_count == 0:
+        return redirect(url_for('upload.index'))
+    return render_template('department_overview.html')

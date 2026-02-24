@@ -29,13 +29,14 @@
                             <th>カテゴリ名</th>
                             <th style="width: 80px;">グラフ色</th>
                             <th style="width: 120px;">バッジプレビュー</th>
+                            <th style="width: 100px;">価値ランク</th>
                             <th style="width: 100px;">削減対象</th>
                             <th style="width: 100px;">キーワード数</th>
                             <th style="width: 120px;">操作</th>
                         </tr>
                     </thead>
                     <tbody id="categoriesTable">
-                        <tr><td colspan="7" class="text-center py-4 text-muted">読み込み中...</td></tr>
+                        <tr><td colspan="8" class="text-center py-4 text-muted">読み込み中...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -90,6 +91,16 @@
                     <div>
                         <span id="badgePreview" class="category-badge">サンプル</span>
                     </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">価値ランク</label>
+                    <select id="valueRank" class="form-select">
+                        <option value="S">S: 高価値（売上・顧客に直結）</option>
+                        <option value="A" selected>A: 中価値（業務運営に必要）</option>
+                        <option value="B">B: 低価値（削減余地あり）</option>
+                        <option value="C">C: 無駄（即削減すべき）</option>
+                    </select>
+                    <small class="text-muted">部門比較やシミュレーターで使用されます</small>
                 </div>
                 <div class="form-check">
                     <input type="checkbox" id="isReductionTarget" class="form-check-input">

@@ -82,3 +82,9 @@ class Config:
     AI_PROVIDER = os.environ.get('AI_PROVIDER', 'anthropic')
     AI_MAX_BATCH_SIZE = 500          # カテゴリ分類の最大バッチサイズ
     AI_INSIGHT_CACHE_HOURS = 720     # インサイトキャッシュ時間（30日間）
+
+    # Google Sheets API設定
+    GOOGLE_API_KEY = os.environ.get('GOOGLE_API_KEY')
+    GOOGLE_CREDENTIALS_PATH = os.environ.get('GOOGLE_CREDENTIALS_PATH',
+                                              os.path.join(basedir, 'credentials.json'))
+    GOOGLE_SHEETS_SCOPES = ['https://www.googleapis.com/auth/spreadsheets.readonly']

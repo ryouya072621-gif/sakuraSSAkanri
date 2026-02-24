@@ -1,7 +1,9 @@
 from flask import Blueprint, render_template, jsonify, request
 from sqlalchemy import func
 from app import db
-from app.models import DisplayCategory, CategoryKeyword, AppSetting, WorkRecord, CategoryMapping, UnitTypeRule, SubCategoryRule
+from app.models import (DisplayCategory, CategoryKeyword, AppSetting, WorkRecord,
+                         CategoryMapping, UnitTypeRule, SubCategoryRule,
+                         DepartmentSheet, MonthlyGoal, MonthlyBusinessItem)
 
 bp = Blueprint('admin', __name__, url_prefix='/admin')
 
@@ -75,6 +77,7 @@ def api_create_category():
         badge_bg_color=data.get('badge_bg_color', '#f3f4f6'),
         badge_text_color=data.get('badge_text_color', '#374151'),
         is_reduction_target=data.get('is_reduction_target', False),
+        value_rank=data.get('value_rank', 'A'),
         sort_order=max_order + 1
     )
     db.session.add(category)
@@ -99,6 +102,7 @@ def api_update_category(id):
     category.badge_bg_color = data.get('badge_bg_color', category.badge_bg_color)
     category.badge_text_color = data.get('badge_text_color', category.badge_text_color)
     category.is_reduction_target = data.get('is_reduction_target', category.is_reduction_target)
+    category.value_rank = data.get('value_rank', category.value_rank)
 
     db.session.commit()
 
@@ -614,3 +618,183 @@ def migrate_page():
     </body>
     </html>
     '''
+
+
+# ============================================
+# Google Sheets 連携管理
+# ============================================
+
+@bp.route('/sheets')
+def sheets():
+    """Google Sheets連携管理画面"""
+    return render_template('admin/sheets.html')
+
+
+@bp.route('/api/sheets', methods=['GET'])
+def api_get_sheets():
+    """登録済みシート一覧取得"""
+    sheets = DepartmentSheet.query.order_by(
+        DepartmentSheet.department_name, DepartmentSheet.staff_name
+    ).all()
+    return jsonify({'sheets': [s.to_dict() for s in sheets]})
+
+
+@bp.route('/api/sheets', methods=['POST'])
+def api_create_sheet():
+    """シート登録"""
+    from app.services.google_sheets import extract_spreadsheet_id
+
+    data = request.json
+    url = data.get('spreadsheet_url', '')
+    spreadsheet_id = data.get('spreadsheet_id') or extract_spreadsheet_id(url)
+
+    if not spreadsheet_id:
+        return jsonify({'success': False, 'error': 'スプレッドシートIDを取得できません'}), 400
+
+    sheet = DepartmentSheet(
+        department_name=data.get('department_name', ''),
+        sv_name=data.get('sv_name', ''),
+        staff_name=data.get('staff_name', ''),
+        spreadsheet_id=spreadsheet_id,
+        spreadsheet_url=url,
+        is_active=True,
+    )
+    db.session.add(sheet)
+    db.session.commit()
+
+    return jsonify({'success': True, 'sheet': sheet.to_dict()})
+
+
+@bp.route('/api/sheets/bulk', methods=['POST'])
+def api_bulk_create_sheets():
+    """シート一括登録"""
+    from app.services.google_sheets import extract_spreadsheet_id
+
+    data = request.json
+    items = data.get('items', [])
+    added = 0
+
+    for item in items:
+        url = item.get('spreadsheet_url', '')
+        spreadsheet_id = item.get('spreadsheet_id') or extract_spreadsheet_id(url)
+        if not spreadsheet_id:
+            continue
+
+        # 既存チェック
+        existing = DepartmentSheet.query.filter_by(
+            spreadsheet_id=spreadsheet_id,
+            department_name=item.get('department_name', ''),
+            staff_name=item.get('staff_name', ''),
+        ).first()
+        if existing:
+            existing.spreadsheet_url = url
+            existing.sv_name = item.get('sv_name', existing.sv_name)
+            existing.is_active = True
+        else:
+            sheet = DepartmentSheet(
+                department_name=item.get('department_name', ''),
+                sv_name=item.get('sv_name', ''),
+                staff_name=item.get('staff_name', ''),
+                spreadsheet_id=spreadsheet_id,
+                spreadsheet_url=url,
+                is_active=True,
+            )
+            db.session.add(sheet)
+            added += 1
+
+    db.session.commit()
+    return jsonify({'success': True, 'added': added, 'total': len(items)})
+
+
+@bp.route('/api/sheets/<int:id>', methods=['PUT'])
+def api_update_sheet(id):
+    """シート更新"""
+    sheet = DepartmentSheet.query.get_or_404(id)
+    data = request.json
+
+    sheet.department_name = data.get('department_name', sheet.department_name)
+    sheet.sv_name = data.get('sv_name', sheet.sv_name)
+    sheet.staff_name = data.get('staff_name', sheet.staff_name)
+    sheet.is_active = data.get('is_active', sheet.is_active)
+
+    if 'spreadsheet_url' in data:
+        from app.services.google_sheets import extract_spreadsheet_id
+        url = data['spreadsheet_url']
+        sheet.spreadsheet_url = url
+        sid = extract_spreadsheet_id(url)
+        if sid:
+            sheet.spreadsheet_id = sid
+
+    db.session.commit()
+    return jsonify({'success': True, 'sheet': sheet.to_dict()})
+
+
+@bp.route('/api/sheets/<int:id>', methods=['DELETE'])
+def api_delete_sheet(id):
+    """シート削除"""
+    sheet = DepartmentSheet.query.get_or_404(id)
+    db.session.delete(sheet)
+    db.session.commit()
+    return jsonify({'success': True})
+
+
+@bp.route('/api/sheets/fetch-all', methods=['POST'])
+def api_fetch_all_sheets():
+    """全シートからデータ取得"""
+    try:
+        from app.services.google_sheets import fetch_all_sheets
+        results = fetch_all_sheets()
+        total_goals = sum(r.get('goals_saved', 0) for r in results)
+        total_items = sum(r.get('items_saved', 0) for r in results)
+        errors = [e for r in results for e in r.get('errors', [])]
+
+        return jsonify({
+            'success': True,
+            'sheets_processed': len(results),
+            'total_goals': total_goals,
+            'total_items': total_items,
+            'errors': errors,
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@bp.route('/api/sheets/<int:id>/fetch', methods=['POST'])
+def api_fetch_single_sheet(id):
+    """個別シートからデータ取得"""
+    sheet = DepartmentSheet.query.get_or_404(id)
+    try:
+        from app.services.google_sheets import fetch_and_save_sheet
+        result = fetch_and_save_sheet(
+            spreadsheet_id=sheet.spreadsheet_id,
+            department_name=sheet.department_name,
+            staff_name=sheet.staff_name,
+        )
+        return jsonify({'success': True, 'result': result})
+    except Exception as e:
+        sheet.last_error = str(e)
+        sheet.last_fetched_at = __import__('datetime').datetime.utcnow()
+        db.session.commit()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@bp.route('/api/monthly-goals', methods=['GET'])
+def api_get_monthly_goals():
+    """月次目標データ取得"""
+    department = request.args.get('department')
+    year_month = request.args.get('year_month')
+
+    query = MonthlyGoal.query
+
+    if department:
+        query = query.filter_by(department_name=department)
+    if year_month:
+        query = query.filter_by(year_month=year_month)
+
+    goals = query.order_by(
+        MonthlyGoal.department_name,
+        MonthlyGoal.year_month,
+        MonthlyGoal.goal_index
+    ).all()
+
+    return jsonify({'goals': [g.to_dict() for g in goals]})

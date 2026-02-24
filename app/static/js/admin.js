@@ -12,9 +12,20 @@ function loadCategories() {
 function renderCategoriesTable(categories) {
     const tbody = document.getElementById('categoriesTable');
     if (!categories || categories.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-muted">カテゴリがありません</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-muted">カテゴリがありません</td></tr>';
         return;
     }
+
+    const rankBadge = (rank) => {
+        const ranks = {
+            'S': { label: 'S:高価値', cls: 'bg-success' },
+            'A': { label: 'A:中価値', cls: 'bg-primary' },
+            'B': { label: 'B:低価値', cls: 'bg-warning text-dark' },
+            'C': { label: 'C:無駄', cls: 'bg-danger' }
+        };
+        const r = ranks[rank] || ranks['A'];
+        return `<span class="badge ${r.cls}">${r.label}</span>`;
+    };
 
     tbody.innerHTML = categories.map((cat, index) => `
         <tr data-id="${cat.id}">
@@ -40,6 +51,7 @@ function renderCategoriesTable(categories) {
                     ${escapeHtml(cat.name)}
                 </span>
             </td>
+            <td>${rankBadge(cat.value_rank)}</td>
             <td>
                 ${cat.is_reduction_target
                     ? '<span class="badge bg-danger">削減対象</span>'
@@ -71,6 +83,7 @@ function showAddModal() {
     document.getElementById('badgeTextColor').value = '#374151';
     document.getElementById('badgeTextColorText').value = '#374151';
     document.getElementById('isReductionTarget').checked = false;
+    document.getElementById('valueRank').value = 'A';
     updateBadgePreview();
 
     if (!categoryModal) {
@@ -96,6 +109,7 @@ function editCategory(id) {
             document.getElementById('badgeTextColor').value = cat.badge_text_color;
             document.getElementById('badgeTextColorText').value = cat.badge_text_color;
             document.getElementById('isReductionTarget').checked = cat.is_reduction_target;
+            document.getElementById('valueRank').value = cat.value_rank || 'A';
             updateBadgePreview();
 
             if (!categoryModal) {
@@ -112,7 +126,8 @@ function saveCategory() {
         color: document.getElementById('categoryColorText').value,
         badge_bg_color: document.getElementById('badgeBgColorText').value,
         badge_text_color: document.getElementById('badgeTextColorText').value,
-        is_reduction_target: document.getElementById('isReductionTarget').checked
+        is_reduction_target: document.getElementById('isReductionTarget').checked,
+        value_rank: document.getElementById('valueRank').value
     };
 
     const url = id ? `/admin/api/categories/${id}` : '/admin/api/categories';
