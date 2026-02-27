@@ -95,7 +95,12 @@ def _migrate_value_rank():
         # デフォルト値を設定: 削減対象はB/C、それ以外はA、コア業務はS
         db.session.execute(text("UPDATE display_categories SET value_rank = 'S' WHERE name = 'コア業務'"))
         db.session.execute(text("UPDATE display_categories SET value_rank = 'C' WHERE name = '移動'"))
-        db.session.execute(text("UPDATE display_categories SET value_rank = 'B' WHERE is_reduction_target = 1 AND value_rank = 'A'"))
+        # is_reduction_target: PostgreSQLはbool型、SQLiteはint型なので両対応
+        is_pg = str(db.engine.url).startswith('postgresql')
+        if is_pg:
+            db.session.execute(text("UPDATE display_categories SET value_rank = 'B' WHERE is_reduction_target = true AND value_rank = 'A'"))
+        else:
+            db.session.execute(text("UPDATE display_categories SET value_rank = 'B' WHERE is_reduction_target = 1 AND value_rank = 'A'"))
         db.session.commit()
 
 
