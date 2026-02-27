@@ -173,7 +173,8 @@ async function loadSummary(qs) {
     const data = await response.json();
 
     document.getElementById('totalHours').textContent = data.total_hours.toLocaleString();
-    document.getElementById('totalCost').textContent = data.total_cost.toLocaleString();
+    document.getElementById('totalCount').textContent = data.total_count.toLocaleString();
+    document.getElementById('totalCost').textContent = data.estimated_cost.toLocaleString();
     document.getElementById('taskTypes').textContent = data.task_types;
     document.getElementById('reductionRatio').textContent = data.reduction_ratio;
 }

@@ -37,7 +37,7 @@ def get_staff_list():
 
 @bp.route('/summary')
 def get_summary():
-    """集計サマリーを取得"""
+    """集計サマリーを取得（時間制と件数制を分離）"""
     category1 = request.args.get('category1')
     staff = request.args.get('staff')
     start_date = request.args.get('start')
@@ -45,11 +45,12 @@ def get_summary():
     default_rate = AppSetting.get_value('default_hourly_rate', 2000)
     hourly_rate = int(request.args.get('hourly_rate', default_rate))
 
-    # SQL集計クエリを使用（全件取得を回避）
+    # work_name別に集計（unit_type判定のため）
     query = db.session.query(
-        func.sum(WorkRecord.quantity).label('total_hours'),
-        func.sum(WorkRecord.total_amount).label('total_cost'),
-        func.count(distinct(WorkRecord.work_name)).label('task_types')
+        WorkRecord.category2,
+        WorkRecord.work_name,
+        func.sum(WorkRecord.quantity).label('quantity'),
+        func.sum(WorkRecord.total_amount).label('cost'),
     )
 
     if category1:
@@ -61,43 +62,43 @@ def get_summary():
     if end_date:
         query = query.filter(WorkRecord.work_date <= datetime.strptime(end_date, '%Y-%m-%d').date())
 
-    result = query.first()
-    total_hours = result.total_hours or 0
-    total_cost = result.total_cost or 0
-    task_types = result.task_types or 0
+    stats = query.group_by(WorkRecord.category2, WorkRecord.work_name).all()
 
-    # 削減対象の計算（category2+work_nameごとに集計してからPythonで処理）
-    cat2_query = db.session.query(
-        WorkRecord.category2,
-        WorkRecord.work_name,
-        func.sum(WorkRecord.quantity).label('hours')
-    )
-    if category1:
-        cat2_query = cat2_query.filter(WorkRecord.category1 == category1)
-    if staff:
-        cat2_query = cat2_query.filter(WorkRecord.staff_name == staff)
-    if start_date:
-        cat2_query = cat2_query.filter(WorkRecord.work_date >= datetime.strptime(start_date, '%Y-%m-%d').date())
-    if end_date:
-        cat2_query = cat2_query.filter(WorkRecord.work_date <= datetime.strptime(end_date, '%Y-%m-%d').date())
+    # タスク種類数
+    task_types = len(set(r.work_name for r in stats if r.work_name))
 
-    cat2_stats = cat2_query.group_by(WorkRecord.category2, WorkRecord.work_name).all()
-
+    # 時間制と件数制を分離 + 削減対象を同時計算
+    total_hours = 0
+    total_count = 0
+    total_cost = 0
     reduction_hours = 0
-    for cat2, work_name, hours in cat2_stats:
-        display_cat = CategoryMapping.auto_categorize(cat2, work_name)
-        # カテゴリベースまたは業務名ベースで削減対象か判定
-        is_category_reduction = CategoryMapping.is_target_for_reduction(display_cat)
-        is_task_reduction = TaskReductionTarget.is_work_reduction_target(work_name)
-        if is_category_reduction or is_task_reduction:
-            reduction_hours += hours
+
+    for cat2, work_name, quantity, cost in stats:
+        qty = quantity or 0
+        unit_type = get_unit_type(work_name)
+
+        if unit_type == 'count':
+            total_count += qty
+        else:
+            total_hours += qty
+
+        total_cost += cost or 0
+
+        # 削減対象判定（時間制のみ）
+        if unit_type != 'count':
+            display_cat = CategoryMapping.auto_categorize(cat2, work_name)
+            is_category_reduction = CategoryMapping.is_target_for_reduction(display_cat)
+            is_task_reduction = TaskReductionTarget.is_work_reduction_target(work_name)
+            if is_category_reduction or is_task_reduction:
+                reduction_hours += qty
 
     reduction_ratio = (reduction_hours / total_hours * 100) if total_hours > 0 else 0
 
     return jsonify({
         'total_hours': round(total_hours, 1),
+        'total_count': round(total_count, 1),
         'total_cost': total_cost,
-        'estimated_cost': total_hours * hourly_rate,
+        'estimated_cost': round(total_hours * hourly_rate),
         'task_types': task_types,
         'reduction_ratio': round(reduction_ratio, 1)
     })

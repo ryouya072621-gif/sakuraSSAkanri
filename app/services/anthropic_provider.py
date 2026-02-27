@@ -131,7 +131,8 @@ class AnthropicProvider(AIProvider):
                 logger.warning("JSON object was truncated, returning empty object")
 
         try:
-            return json.loads(text)
+            # strict=False で制御文字（改行・タブ等）を許容
+            return json.loads(text, strict=False)
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse JSON: {e}\nText: {text[:500]}")
             raise AIProviderError(f"Failed to parse AI response as JSON")
