@@ -382,3 +382,93 @@ def build_project_extraction_prompt(
 4. 既存プロジェクト一覧がある場合は、同じクライアントなら必ずその名前を使用する
 
 JSON配列のみを出力してください。"""
+
+
+# ============================================
+# 部門月次比較 AI分析プロンプト
+# ============================================
+
+DEPARTMENT_MONTH_REPORT_SYSTEM_PROMPT = """あなたは業務データの分析アシスタントです。
+2つの月の業務データを比較して、変動点や注意すべきパターンを報告します。
+
+【絶対的なルール】
+- スコアリングやランキングは一切行わない
+- 「良い」「悪い」「効率的」「非効率」などの価値判断は行わない
+- 事実（数値の増減）のみを報告する
+- 増減の理由として「考えられること」は述べても良いが、推測であることを明記する
+- 日本語で書く
+
+【分析の観点】
+1. 全体の時間・コストの変動（増えたか減ったか、どの程度か）
+2. カテゴリ別で大きく動いたもの（前月比で目立つ増減）
+3. スタッフ別で目立つ変動（特定のスタッフだけ大きく増減していないか）
+4. 業務名レベルで消えた業務・新たに登場した業務
+5. 微細だが気になるパターン（複数の小さな変動が同じ方向を向いている場合など）
+
+【出力フォーマット】
+Markdown形式で、以下の構造で出力:
+- 簡潔な概要（2-3文）
+- 主要な変動点（箇条書き）
+- 気になるパターン（箇条書き）
+- 補足・注意点（あれば）
+
+数値は必ず含めること（「10.5h増加」「前月比+23%」など）。"""
+
+
+def build_department_month_report_prompt(
+    department: str,
+    base_month: str,
+    compare_month: str,
+    detail_data: dict
+) -> str:
+    """部門月次比較AI分析用のプロンプトを構築"""
+
+    summary = detail_data.get('summary', {})
+    categories = detail_data.get('category_breakdown', [])
+    staff = detail_data.get('staff_breakdown', [])
+    work_changes = detail_data.get('work_changes', [])
+
+    cat_lines = []
+    for c in categories:
+        pct_str = f"{c['diff_pct']:+.1f}%" if c['diff_pct'] is not None else '新規'
+        cat_lines.append(
+            f"  - {c['category']}: {c['base_hours']}h → {c['compare_hours']}h "
+            f"(差: {c['diff_hours']:+.1f}h, {pct_str})"
+        )
+
+    staff_lines = []
+    for s in staff:
+        pct_str = f"{s['diff_pct']:+.1f}%" if s['diff_pct'] is not None else '新規'
+        staff_lines.append(
+            f"  - {s['staff_name']}: {s['base_hours']}h → {s['compare_hours']}h "
+            f"(差: {s['diff_hours']:+.1f}h, {pct_str})"
+        )
+
+    work_lines = []
+    for w in work_changes[:20]:
+        pct_str = f"{w['diff_pct']:+.1f}%" if w['diff_pct'] is not None else '新規'
+        work_lines.append(
+            f"  - {w['work_name']}: {w['base_hours']}h → {w['compare_hours']}h "
+            f"(差: {w['diff_hours']:+.1f}h, {pct_str})"
+        )
+
+    diff_pct_str = f"{summary.get('diff_pct', 0):+.1f}%" if summary.get('diff_pct') is not None else '新規'
+
+    return f"""【部門】{department}
+【比較期間】{base_month} → {compare_month}
+
+■ 全体サマリー
+- 総時間: {summary.get('base_hours', 0)}h → {summary.get('compare_hours', 0)}h (差: {summary.get('diff_hours', 0):+.1f}h, {diff_pct_str})
+- 総コスト: ¥{summary.get('base_cost', 0):,} → ¥{summary.get('compare_cost', 0):,}
+
+■ カテゴリ別内訳
+{chr(10).join(cat_lines) if cat_lines else '  データなし'}
+
+■ スタッフ別内訳
+{chr(10).join(staff_lines) if staff_lines else '  データなし'}
+
+■ 業務名別 変動TOP（|変動|の大きい順）
+{chr(10).join(work_lines) if work_lines else '  データなし'}
+
+上記データを分析して、この部門の月次変動について報告してください。
+事実に基づく観察のみ述べてください。スコアやランキングは不要です。"""

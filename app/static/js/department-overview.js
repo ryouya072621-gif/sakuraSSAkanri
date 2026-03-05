@@ -1,321 +1,78 @@
-// 部門比較ダッシュボード
-let deptBarChart = null;
-let detailPieChart = null;
-let detailReductionChart = null;
-let detailStaffChart = null;
-let currentDeptData = [];
-
-let goalRankingChart = null;
-let goalTrendChart = null;
-let goalData = null;
+// 部門比較ダッシュボード - 月次比較（事実ベース）
+let catChart = null;
+let staffChart = null;
+let currentDept = null;
+let currentData = null;
 
 document.addEventListener('DOMContentLoaded', function() {
-    loadData();
-    loadGoalData();
+    loadOverview();
+
+    // タブ切り替え時にチャートをリサイズ
+    document.querySelectorAll('[data-bs-toggle="tab"]').forEach(tab => {
+        tab.addEventListener('shown.bs.tab', function() {
+            if (catChart) catChart.resize();
+            if (staffChart) staffChart.resize();
+        });
+    });
 });
 
-function getDateParams() {
-    const start = document.getElementById('startDate').value;
-    const end = document.getElementById('endDate').value;
-    let params = '';
-    if (start) params += `&start=${start}`;
-    if (end) params += `&end=${end}`;
-    return params;
+// ============================================
+// 月フォーマット
+// ============================================
+function formatMonth(ym) {
+    if (!ym) return '';
+    const parts = ym.split('-');
+    if (parts.length !== 2) return ym;
+    return `${parts[0]}年${parseInt(parts[1])}月`;
 }
 
-function loadData() {
-    fetch(`/api/analytics/department-comparison?${getDateParams()}`)
-        .then(r => r.json())
-        .then(data => {
-            currentDeptData = data.departments;
-            renderKPIs(data.departments);
-            renderBarChart(data.departments, data.rank_colors);
-            renderRanking(data.departments);
-            renderDeptCards(data.departments);
-        })
-        .catch(err => console.error('Failed to load department data:', err));
+// ============================================
+// 差分表示ヘルパー
+// ============================================
+function getDiffClass(val) {
+    if (val > 0) return 'diff-positive';
+    if (val < 0) return 'diff-negative';
+    return 'diff-zero';
 }
 
-function renderKPIs(depts) {
-    document.getElementById('kpiDeptCount').textContent = depts.length;
-
-    if (depts.length === 0) return;
-
-    const totalHours = depts.reduce((s, d) => s + d.total_hours, 0);
-    const totalS = depts.reduce((s, d) => s + d.rank_hours.S, 0);
-    const totalBC = depts.reduce((s, d) => s + d.rank_hours.B + d.rank_hours.C, 0);
-
-    document.getElementById('kpiHighValueRatio').textContent =
-        totalHours > 0 ? (totalS / totalHours * 100).toFixed(1) + '%' : '0%';
-    document.getElementById('kpiWasteRatio').textContent =
-        totalHours > 0 ? (totalBC / totalHours * 100).toFixed(1) + '%' : '0%';
-    document.getElementById('kpiBestDept').textContent = depts[0].department;
+function getArrow(val) {
+    if (val > 0) return '▲';
+    if (val < 0) return '▼';
+    return '→';
 }
 
-function renderBarChart(depts, colors) {
-    const ctx = document.getElementById('deptBarChart').getContext('2d');
-    if (deptBarChart) deptBarChart.destroy();
-
-    const labels = depts.map(d => d.department);
-    const datasets = [
-        { label: 'S: 高価値', data: depts.map(d => d.rank_hours.S), backgroundColor: colors.S },
-        { label: 'A: 中価値', data: depts.map(d => d.rank_hours.A), backgroundColor: colors.A },
-        { label: 'B: 低価値', data: depts.map(d => d.rank_hours.B), backgroundColor: colors.B },
-        { label: 'C: 無駄',   data: depts.map(d => d.rank_hours.C), backgroundColor: colors.C },
-    ];
-
-    deptBarChart = new Chart(ctx, {
-        type: 'bar',
-        data: { labels, datasets },
-        options: {
-            indexAxis: 'y',
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: { position: 'top' },
-                tooltip: {
-                    callbacks: {
-                        label: ctx => `${ctx.dataset.label}: ${ctx.raw.toFixed(1)}h`
-                    }
-                }
-            },
-            scales: {
-                x: { stacked: true, title: { display: true, text: '時間 (h)' } },
-                y: { stacked: true }
-            },
-            onClick: (evt, elements) => {
-                if (elements.length > 0) {
-                    const idx = elements[0].index;
-                    selectDepartment(depts[idx].department);
-                }
-            }
-        }
-    });
+function formatDiff(val, suffix) {
+    if (val === 0) return `<span class="diff-zero">→ 0${suffix}</span>`;
+    const cls = getDiffClass(val);
+    const arrow = getArrow(val);
+    const sign = val > 0 ? '+' : '';
+    return `<span class="${cls}">${arrow} ${sign}${val.toFixed(1)}${suffix}</span>`;
 }
 
-function renderRanking(depts) {
-    const container = document.getElementById('deptRanking');
-    if (depts.length === 0) {
-        container.innerHTML = '<p class="text-muted text-center">データなし</p>';
-        return;
-    }
-
-    container.innerHTML = depts.map((d, i) => {
-        const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
-        const scoreColor = d.efficiency_score >= 0 ? 'text-success' : 'text-danger';
-        return `
-            <div class="d-flex justify-content-between align-items-center py-2 ${i < depts.length - 1 ? 'border-bottom' : ''}"
-                 style="cursor:pointer" onclick="selectDepartment('${escapeAttr(d.department)}')">
-                <div>
-                    <span class="me-2">${medal}</span>
-                    <strong>${escapeHtml(d.department)}</strong>
-                    <small class="text-muted ms-2">${d.total_hours.toFixed(0)}h / ${d.staff_count}名</small>
-                </div>
-                <span class="fw-bold ${scoreColor}">${d.efficiency_score.toFixed(1)}</span>
-            </div>
-        `;
-    }).join('');
+function formatPct(pct) {
+    if (pct === null || pct === undefined) return '<span class="text-muted">新規</span>';
+    if (pct === 0) return '<span class="diff-zero">0%</span>';
+    const cls = getDiffClass(pct);
+    const sign = pct > 0 ? '+' : '';
+    return `<span class="${cls}">${sign}${pct}%</span>`;
 }
 
-function renderDeptCards(depts) {
-    const container = document.getElementById('deptCards');
-    if (depts.length === 0) {
-        container.innerHTML = '<div class="col-12"><p class="text-muted text-center">データなし</p></div>';
-        return;
-    }
-
-    container.innerHTML = depts.map(d => {
-        const total = d.total_hours || 1;
-        const sPct = (d.rank_hours.S / total * 100).toFixed(0);
-        const aPct = (d.rank_hours.A / total * 100).toFixed(0);
-        const bPct = (d.rank_hours.B / total * 100).toFixed(0);
-        const cPct = (d.rank_hours.C / total * 100).toFixed(0);
-
-        return `
-        <div class="col-md-4 col-lg-3">
-            <div class="card dept-card h-100" id="card-${escapeAttr(d.department)}"
-                 onclick="selectDepartment('${escapeAttr(d.department)}')">
-                <div class="card-body">
-                    <h6 class="card-title mb-2">${escapeHtml(d.department)}</h6>
-                    <div class="d-flex justify-content-between mb-2">
-                        <small class="text-muted">${d.total_hours.toFixed(0)}h</small>
-                        <small class="text-muted">${d.staff_count}名</small>
-                    </div>
-                    <div class="progress mb-2" style="height: 12px;">
-                        <div class="progress-bar" style="width:${sPct}%;background:#16a34a" title="S:${sPct}%"></div>
-                        <div class="progress-bar" style="width:${aPct}%;background:#2563eb" title="A:${aPct}%"></div>
-                        <div class="progress-bar" style="width:${bPct}%;background:#ca8a04" title="B:${bPct}%"></div>
-                        <div class="progress-bar" style="width:${cPct}%;background:#dc2626" title="C:${cPct}%"></div>
-                    </div>
-                    <div class="d-flex justify-content-between">
-                        <small class="rank-S fw-bold">S: ${sPct}%</small>
-                        <small class="rank-C fw-bold">C: ${cPct}%</small>
-                    </div>
-                </div>
-            </div>
-        </div>`;
-    }).join('');
+function formatCost(val) {
+    if (val === undefined || val === null) return '¥0';
+    return '¥' + Math.round(val).toLocaleString();
 }
 
-function selectDepartment(dept) {
-    // カードのアクティブ状態を更新
-    document.querySelectorAll('.dept-card').forEach(c => c.classList.remove('active'));
-    const card = document.getElementById(`card-${dept}`);
-    if (card) card.classList.add('active');
-
-    document.getElementById('detailSection').style.display = 'block';
-    document.getElementById('detailDeptName').textContent = dept;
-
-    fetch(`/api/analytics/department-detail?department=${encodeURIComponent(dept)}${getDateParams()}`)
-        .then(r => r.json())
-        .then(data => {
-            renderDetailPie(data);
-            renderReductionChart(data.reduction_candidates);
-            renderStaffChart(data.staff_comparison, data.rank_colors);
-        })
-        .catch(err => console.error('Failed to load detail:', err));
-
-    // 詳細セクションにスクロール
-    document.getElementById('detailSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
+function formatCostDiff(val) {
+    if (val === 0) return `<span class="diff-zero">→ ¥0</span>`;
+    const cls = getDiffClass(val);
+    const arrow = getArrow(val);
+    const sign = val > 0 ? '+' : '';
+    return `<span class="${cls}">${arrow} ${sign}¥${Math.abs(Math.round(val)).toLocaleString()}</span>`;
 }
 
-function closeDetail() {
-    document.getElementById('detailSection').style.display = 'none';
-    document.querySelectorAll('.dept-card').forEach(c => c.classList.remove('active'));
-}
-
-function renderDetailPie(data) {
-    const ctx = document.getElementById('detailPieChart').getContext('2d');
-    if (detailPieChart) detailPieChart.destroy();
-
-    const ranks = ['S', 'A', 'B', 'C'];
-    const labels = ['S: 高価値', 'A: 中価値', 'B: 低価値', 'C: 無駄'];
-    const colors = [data.rank_colors.S, data.rank_colors.A, data.rank_colors.B, data.rank_colors.C];
-    const values = ranks.map(r => data.rank_hours[r] || 0);
-
-    detailPieChart = new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-            labels,
-            datasets: [{
-                data: values,
-                backgroundColor: colors,
-                borderWidth: 2,
-                borderColor: '#fff'
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: { position: 'bottom' },
-                tooltip: {
-                    callbacks: {
-                        label: ctx => {
-                            const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
-                            const pct = total > 0 ? (ctx.raw / total * 100).toFixed(1) : 0;
-                            return `${ctx.label}: ${ctx.raw.toFixed(1)}h (${pct}%)`;
-                        }
-                    }
-                }
-            }
-        }
-    });
-}
-
-function renderReductionChart(candidates) {
-    const ctx = document.getElementById('detailReductionChart').getContext('2d');
-    if (detailReductionChart) detailReductionChart.destroy();
-
-    if (!candidates || candidates.length === 0) {
-        detailReductionChart = new Chart(ctx, {
-            type: 'bar',
-            data: { labels: ['データなし'], datasets: [{ data: [0] }] },
-            options: { responsive: true }
-        });
-        return;
-    }
-
-    const labels = candidates.map(c => c.work_name.length > 20 ? c.work_name.slice(0, 20) + '...' : c.work_name);
-    const values = candidates.map(c => c.hours);
-    const bgColors = candidates.map(c => c.rank === 'C' ? '#dc2626' : '#ca8a04');
-
-    detailReductionChart = new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels,
-            datasets: [{
-                label: '削減可能時間 (h)',
-                data: values,
-                backgroundColor: bgColors,
-                borderRadius: 4
-            }]
-        },
-        options: {
-            indexAxis: 'y',
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: { display: false },
-                tooltip: {
-                    callbacks: {
-                        title: (items) => candidates[items[0].dataIndex].work_name,
-                        label: ctx => `${ctx.raw.toFixed(1)}h（${candidates[ctx.dataIndex].rank}ランク）`
-                    }
-                }
-            },
-            scales: {
-                x: { title: { display: true, text: '時間 (h)' } }
-            }
-        }
-    });
-}
-
-function renderStaffChart(staffData, colors) {
-    const ctx = document.getElementById('detailStaffChart').getContext('2d');
-    if (detailStaffChart) detailStaffChart.destroy();
-
-    if (!staffData || staffData.length === 0) {
-        detailStaffChart = new Chart(ctx, {
-            type: 'bar',
-            data: { labels: ['データなし'], datasets: [{ data: [0] }] },
-            options: { responsive: true }
-        });
-        return;
-    }
-
-    const labels = staffData.map(s => s.name);
-    const datasets = [
-        { label: 'S: 高価値', data: staffData.map(s => s.rank_hours.S), backgroundColor: colors.S },
-        { label: 'A: 中価値', data: staffData.map(s => s.rank_hours.A), backgroundColor: colors.A },
-        { label: 'B: 低価値', data: staffData.map(s => s.rank_hours.B), backgroundColor: colors.B },
-        { label: 'C: 無駄',   data: staffData.map(s => s.rank_hours.C), backgroundColor: colors.C },
-    ];
-
-    detailStaffChart = new Chart(ctx, {
-        type: 'bar',
-        data: { labels, datasets },
-        options: {
-            indexAxis: 'y',
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: { position: 'top' },
-                tooltip: {
-                    callbacks: {
-                        label: ctx => `${ctx.dataset.label}: ${ctx.raw.toFixed(1)}h`
-                    }
-                }
-            },
-            scales: {
-                x: { stacked: true, title: { display: true, text: '時間 (h)' } },
-                y: { stacked: true }
-            }
-        }
-    });
-}
-
-// ユーティリティ
+// ============================================
+// XSSエスケープ
+// ============================================
 function escapeHtml(str) {
     if (!str) return '';
     const div = document.createElement('div');
@@ -328,187 +85,416 @@ function escapeAttr(str) {
     return str.replace(/'/g, "\\'").replace(/"/g, '&quot;');
 }
 
-
 // ============================================
-// 月次目標進捗
+// メインデータ読み込み
 // ============================================
+function loadOverview() {
+    const baseSelect = document.getElementById('baseMonth');
+    const compSelect = document.getElementById('compareMonth');
+    const baseVal = baseSelect.value;
+    const compVal = compSelect.value;
 
-function loadGoalData() {
-    const monthSelect = document.getElementById('goalMonth');
-    const month = monthSelect ? monthSelect.value : '';
-    const qs = month ? `?year_month=${month}` : '';
+    let qs = '';
+    if (baseVal) qs += `&base_month=${baseVal}`;
+    if (compVal) qs += `&compare_month=${compVal}`;
 
-    fetch(`/api/analytics/monthly-goals${qs}`)
+    document.getElementById('overviewBody').innerHTML =
+        '<tr><td colspan="7" class="text-center text-muted py-4">' +
+        '<span class="spinner-border spinner-border-sm me-2"></span>読み込み中...</td></tr>';
+
+    fetch(`/api/analytics/department-month-comparison?${qs}`)
         .then(r => r.json())
         .then(data => {
-            goalData = data;
-            const section = document.getElementById('goalSection');
-            if (!section) return;
-
-            // データがあれば表示
-            if (Object.keys(data.departments).length > 0) {
-                section.style.display = 'block';
-
-                // 月セレクタを設定
-                if (monthSelect && data.months && data.months.length > 0) {
-                    const currentVal = monthSelect.value;
-                    monthSelect.innerHTML = '<option value="">最新月</option>' +
-                        data.months.map(m => `<option value="${m}" ${m === currentVal ? 'selected' : ''}>${formatYearMonth(m)}</option>`).join('');
-                }
-
-                renderGoalRanking(data.departments);
-                renderGoalTrend(data.trend);
-            }
+            populateMonthSelectors(data.available_months, data.base_month, data.compare_month);
+            document.getElementById('periodLabel').innerHTML =
+                `<i class="bi bi-calendar3 me-2"></i>${formatMonth(data.base_month)} → ${formatMonth(data.compare_month)}`;
+            renderOverviewTable(data.departments, data.base_month, data.compare_month);
         })
-        .catch(err => console.error('Failed to load goal data:', err));
+        .catch(err => {
+            console.error('Failed to load overview:', err);
+            document.getElementById('overviewBody').innerHTML =
+                '<tr><td colspan="7" class="text-center text-danger py-4">データの読み込みに失敗しました</td></tr>';
+        });
 }
 
-function formatYearMonth(ym) {
-    if (!ym || ym.length !== 4) return ym;
-    return `20${ym.substring(0, 2)}年${parseInt(ym.substring(2))}月`;
+function populateMonthSelectors(months, baseSel, compSel) {
+    const baseSelect = document.getElementById('baseMonth');
+    const compSelect = document.getElementById('compareMonth');
+
+    const opts = months.map(m =>
+        `<option value="${m}">${formatMonth(m)}</option>`
+    ).join('');
+
+    baseSelect.innerHTML = opts;
+    compSelect.innerHTML = opts;
+
+    if (baseSel) baseSelect.value = baseSel;
+    if (compSel) compSelect.value = compSel;
 }
 
-function renderGoalRanking(depts) {
-    const ctx = document.getElementById('goalRankingChart');
-    if (!ctx) return;
+// ============================================
+// 全部門一覧テーブル
+// ============================================
+function renderOverviewTable(departments, baseMonth, compMonth) {
+    const body = document.getElementById('overviewBody');
 
-    if (goalRankingChart) goalRankingChart.destroy();
+    if (!departments || departments.length === 0) {
+        body.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">データなし</td></tr>';
+        return;
+    }
 
-    const entries = Object.entries(depts)
-        .map(([name, data]) => ({ name, avg: data.avg_progress || 0 }))
-        .sort((a, b) => b.avg - a.avg);
+    body.innerHTML = departments.map(d => `
+        <tr class="dept-row ${currentDept === d.department ? 'active' : ''}"
+            onclick="selectDepartment('${escapeAttr(d.department)}', '${baseMonth}', '${compMonth}')">
+            <td class="fw-bold">${escapeHtml(d.department)}</td>
+            <td class="text-end">${d.base_hours.toFixed(1)}h</td>
+            <td class="text-end">${d.compare_hours.toFixed(1)}h</td>
+            <td class="text-end">${formatDiff(d.diff_hours, 'h')}</td>
+            <td class="text-end">${formatCost(d.base_cost)}</td>
+            <td class="text-end">${formatCost(d.compare_cost)}</td>
+            <td class="text-end">${formatCostDiff(d.diff_cost)}</td>
+        </tr>
+    `).join('');
+}
 
-    const labels = entries.map(e => e.name.length > 15 ? e.name.slice(0, 15) + '...' : e.name);
-    const values = entries.map(e => e.avg);
-    const colors = values.map(v => v >= 80 ? '#16a34a' : v >= 50 ? '#2563eb' : v >= 30 ? '#ca8a04' : '#dc2626');
+// ============================================
+// 部門詳細を選択・表示
+// ============================================
+function selectDepartment(dept, baseMonth, compMonth) {
+    currentDept = dept;
 
-    goalRankingChart = new Chart(ctx.getContext('2d'), {
+    // 行のアクティブ状態を更新
+    document.querySelectorAll('.dept-row').forEach(r => r.classList.remove('active'));
+    event.currentTarget.classList.add('active');
+
+    document.getElementById('detailSection').style.display = 'block';
+    document.getElementById('detailDeptName').textContent = dept;
+
+    // AI分析をリセット
+    document.getElementById('aiReportPlaceholder').style.display = 'block';
+    document.getElementById('aiReportContent').style.display = 'none';
+    document.getElementById('aiReportBtn').disabled = false;
+    document.getElementById('aiReportBtn').innerHTML = '<i class="bi bi-robot me-1"></i>AI分析を実行';
+
+    // 最初のタブに戻す
+    const catTabBtn = document.getElementById('catTab');
+    if (catTabBtn) {
+        const tab = new bootstrap.Tab(catTabBtn);
+        tab.show();
+    }
+
+    // KPI表示をリセット
+    document.getElementById('detailKPIs').innerHTML =
+        '<div class="col-12 text-center text-muted py-3"><span class="spinner-border spinner-border-sm me-2"></span>読み込み中...</div>';
+
+    // テーブルをリセット
+    ['catTable', 'staffTable', 'workTable'].forEach(id => {
+        const tbody = document.querySelector(`#${id} tbody`);
+        if (tbody) tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3">読み込み中...</td></tr>';
+    });
+
+    const bm = baseMonth || document.getElementById('baseMonth').value;
+    const cm = compMonth || document.getElementById('compareMonth').value;
+
+    fetch(`/api/analytics/department-month-detail?department=${encodeURIComponent(dept)}&base_month=${bm}&compare_month=${cm}`)
+        .then(r => r.json())
+        .then(data => {
+            currentData = data;
+            renderDetailKPIs(data.summary);
+            renderCategoryTab(data.category_breakdown);
+            renderStaffTab(data.staff_breakdown);
+            renderWorkTab(data.work_changes);
+        })
+        .catch(err => {
+            console.error('Failed to load detail:', err);
+            document.getElementById('detailKPIs').innerHTML =
+                '<div class="col-12 text-center text-danger py-3">詳細データの読み込みに失敗しました</div>';
+        });
+
+    // スクロール
+    document.getElementById('detailSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// ============================================
+// KPIカード
+// ============================================
+function renderDetailKPIs(summary) {
+    const container = document.getElementById('detailKPIs');
+    const diffHoursCls = getDiffClass(summary.diff_hours);
+    const diffCost = summary.compare_cost - summary.base_cost;
+    const diffCostCls = getDiffClass(diffCost);
+
+    container.innerHTML = `
+        <div class="col-6 col-md-3">
+            <div class="card kpi-card h-100">
+                <div class="card-body py-3">
+                    <div class="label">前月 時間</div>
+                    <div class="value">${summary.base_hours.toFixed(1)}h</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card kpi-card h-100">
+                <div class="card-body py-3">
+                    <div class="label">今月 時間</div>
+                    <div class="value">${summary.compare_hours.toFixed(1)}h</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card kpi-card h-100">
+                <div class="card-body py-3">
+                    <div class="label">時間 差分</div>
+                    <div class="value ${diffHoursCls}">${summary.diff_hours > 0 ? '+' : ''}${summary.diff_hours.toFixed(1)}h</div>
+                    <div class="label">${formatPct(summary.diff_pct)}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card kpi-card h-100">
+                <div class="card-body py-3">
+                    <div class="label">コスト 差分</div>
+                    <div class="value ${diffCostCls}">${diffCost > 0 ? '+' : ''}¥${Math.abs(diffCost).toLocaleString()}</div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// ============================================
+// カテゴリ別タブ
+// ============================================
+function renderCategoryTab(breakdown) {
+    // テーブル
+    const tbody = document.querySelector('#catTable tbody');
+    if (!breakdown || breakdown.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3">データなし</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = breakdown.map(item => `
+        <tr>
+            <td>${escapeHtml(item.category)}</td>
+            <td class="text-end">${item.base_hours.toFixed(1)}h</td>
+            <td class="text-end">${item.compare_hours.toFixed(1)}h</td>
+            <td class="text-end">${formatDiff(item.diff_hours, 'h')}</td>
+            <td class="text-end">${formatPct(item.diff_pct)}</td>
+        </tr>
+    `).join('');
+
+    // チャート
+    renderGroupedBarChart('catChart', breakdown, 'category');
+}
+
+// ============================================
+// スタッフ別タブ
+// ============================================
+function renderStaffTab(breakdown) {
+    const tbody = document.querySelector('#staffTable tbody');
+    if (!breakdown || breakdown.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3">データなし</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = breakdown.map(item => `
+        <tr>
+            <td>${escapeHtml(item.staff_name)}</td>
+            <td class="text-end">${item.base_hours.toFixed(1)}h</td>
+            <td class="text-end">${item.compare_hours.toFixed(1)}h</td>
+            <td class="text-end">${formatDiff(item.diff_hours, 'h')}</td>
+            <td class="text-end">${formatPct(item.diff_pct)}</td>
+        </tr>
+    `).join('');
+
+    // チャート
+    renderGroupedBarChart('staffChart', breakdown, 'staff_name');
+}
+
+// ============================================
+// 業務変動TOPタブ
+// ============================================
+function renderWorkTab(changes) {
+    const tbody = document.querySelector('#workTable tbody');
+    if (!changes || changes.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3">データなし</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = changes.map(item => `
+        <tr>
+            <td>${escapeHtml(item.work_name)}</td>
+            <td class="text-end">${item.base_hours.toFixed(1)}h</td>
+            <td class="text-end">${item.compare_hours.toFixed(1)}h</td>
+            <td class="text-end">${formatDiff(item.diff_hours, 'h')}</td>
+            <td class="text-end">${formatPct(item.diff_pct)}</td>
+        </tr>
+    `).join('');
+}
+
+// ============================================
+// Grouped Bar Chart 共通描画
+// ============================================
+function renderGroupedBarChart(canvasId, data, labelKey) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+
+    // 既存チャートを破棄
+    if (canvasId === 'catChart' && catChart) {
+        catChart.destroy();
+        catChart = null;
+    }
+    if (canvasId === 'staffChart' && staffChart) {
+        staffChart.destroy();
+        staffChart = null;
+    }
+
+    // 上位15件に制限（見やすさのため）
+    const sliced = data.slice(0, 15);
+    const labels = sliced.map(d => {
+        const name = d[labelKey] || '(未分類)';
+        return name.length > 18 ? name.slice(0, 18) + '...' : name;
+    });
+
+    const chart = new Chart(ctx, {
         type: 'bar',
         data: {
-            labels,
-            datasets: [{
-                label: '平均目標達成率 (%)',
-                data: values,
-                backgroundColor: colors,
-                borderRadius: 4
-            }]
+            labels: labels,
+            datasets: [
+                {
+                    label: '前月',
+                    data: sliced.map(d => d.base_hours),
+                    backgroundColor: 'rgba(59, 130, 246, 0.7)',
+                    borderColor: 'rgba(59, 130, 246, 1)',
+                    borderWidth: 1,
+                    borderRadius: 3,
+                },
+                {
+                    label: '今月',
+                    data: sliced.map(d => d.compare_hours),
+                    backgroundColor: 'rgba(249, 115, 22, 0.7)',
+                    borderColor: 'rgba(249, 115, 22, 1)',
+                    borderWidth: 1,
+                    borderRadius: 3,
+                }
+            ]
         },
         options: {
             indexAxis: 'y',
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-                legend: { display: false },
+                legend: { position: 'top' },
                 tooltip: {
                     callbacks: {
-                        title: (items) => entries[items[0].dataIndex].name,
-                        label: ctx => `達成率: ${ctx.raw}%`
+                        label: function(ctx) {
+                            return `${ctx.dataset.label}: ${ctx.raw.toFixed(1)}h`;
+                        }
                     }
                 }
             },
             scales: {
                 x: {
-                    min: 0, max: 100,
-                    title: { display: true, text: '達成率 (%)' }
-                }
-            },
-            onClick: (evt, elements) => {
-                if (elements.length > 0) {
-                    const idx = elements[0].index;
-                    showGoalDetail(entries[idx].name);
-                }
-            }
-        }
-    });
-}
-
-function renderGoalTrend(trend) {
-    const ctx = document.getElementById('goalTrendChart');
-    if (!ctx) return;
-
-    if (goalTrendChart) goalTrendChart.destroy();
-
-    const months = Object.keys(trend).sort();
-    const values = months.map(m => trend[m]);
-
-    goalTrendChart = new Chart(ctx.getContext('2d'), {
-        type: 'line',
-        data: {
-            labels: months.map(formatYearMonth),
-            datasets: [{
-                label: '全部門平均 目標達成率',
-                data: values,
-                borderColor: '#6366f1',
-                backgroundColor: 'rgba(99, 102, 241, 0.1)',
-                fill: true,
-                tension: 0.3,
-                pointRadius: 5,
-                pointHoverRadius: 8,
-                borderWidth: 3
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: { display: true, position: 'top' },
-                tooltip: {
-                    callbacks: {
-                        label: ctx => `達成率: ${ctx.raw}%`
-                    }
-                }
-            },
-            scales: {
+                    beginAtZero: true,
+                    title: { display: true, text: '時間 (h)' }
+                },
                 y: {
-                    min: 0, max: 100,
-                    title: { display: true, text: '達成率 (%)' }
+                    ticks: { font: { size: 11 } }
                 }
             }
         }
     });
+
+    if (canvasId === 'catChart') catChart = chart;
+    if (canvasId === 'staffChart') staffChart = chart;
 }
 
-function showGoalDetail(deptName) {
-    if (!goalData || !goalData.departments[deptName]) return;
+// ============================================
+// AI分析レポート生成
+// ============================================
+function generateAIReport() {
+    if (!currentData || !currentDept) return;
 
-    const card = document.getElementById('goalDetailCard');
-    const title = document.getElementById('goalDetailTitle');
-    const content = document.getElementById('goalDetailContent');
-    if (!card || !content) return;
+    const btn = document.getElementById('aiReportBtn');
+    const placeholder = document.getElementById('aiReportPlaceholder');
+    const content = document.getElementById('aiReportContent');
 
-    card.style.display = 'block';
-    title.textContent = `${deptName} - 目標詳細`;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>AI分析中...';
 
-    const deptInfo = goalData.departments[deptName];
-    const latestMonth = deptInfo.latest_month;
-    const goals = deptInfo.months[latestMonth] || [];
+    const bm = document.getElementById('baseMonth').value;
+    const cm = document.getElementById('compareMonth').value;
 
-    if (goals.length === 0) {
-        content.innerHTML = '<div class="col-12 text-muted text-center py-3">目標データがありません</div>';
-        return;
-    }
+    fetch('/api/ai/department-month-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            department: currentDept,
+            base_month: bm,
+            compare_month: cm,
+        })
+    })
+    .then(r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+    })
+    .then(data => {
+        placeholder.style.display = 'none';
+        content.style.display = 'block';
+        content.innerHTML = renderMarkdown(data.report);
+    })
+    .catch(err => {
+        console.error('AI report failed:', err);
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-robot me-1"></i>再試行';
+        content.style.display = 'block';
+        content.innerHTML = '<div class="alert alert-danger">AI分析に失敗しました。しばらく待ってから再試行してください。</div>';
+    });
+}
 
-    content.innerHTML = goals.map(g => {
-        const pct = g.progress_pct || 0;
-        const barColor = pct >= 80 ? '#16a34a' : pct >= 50 ? '#2563eb' : pct >= 30 ? '#ca8a04' : '#dc2626';
-        return `
-            <div class="col-md-6 col-lg-4">
-                <div class="card h-100">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between mb-2">
-                            <strong class="small">目標 ${g.goal_index}</strong>
-                            <span class="badge" style="background:${barColor};color:white">${pct}%</span>
-                        </div>
-                        <p class="small mb-2">${escapeHtml(g.goal_name || '(名称なし)')}</p>
-                        <div class="progress" style="height: 8px;">
-                            <div class="progress-bar" style="width:${pct}%;background:${barColor}"></div>
-                        </div>
-                        ${g.details ? `<p class="small text-muted mt-2 mb-0">${escapeHtml(g.details).substring(0, 100)}</p>` : ''}
-                    </div>
-                </div>
-            </div>
-        `;
-    }).join('');
+// ============================================
+// 簡易Markdownレンダラ
+// ============================================
+function renderMarkdown(text) {
+    if (!text) return '';
 
-    card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // XSSエスケープ
+    let html = escapeHtml(text);
+
+    // 見出し（h5, h4）
+    html = html.replace(/^##### (.+)$/gm, '<h6 class="mt-3 mb-1">$1</h6>');
+    html = html.replace(/^#### (.+)$/gm, '<h5 class="mt-3 mb-2">$1</h5>');
+    html = html.replace(/^### (.+)$/gm, '<h5 class="mt-3 mb-2" style="color:#4338ca">$1</h5>');
+    html = html.replace(/^## (.+)$/gm, '<h5 class="mt-4 mb-2" style="color:#4338ca;font-size:1.1rem">$1</h5>');
+
+    // 太字・斜体
+    html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+
+    // リスト
+    html = html.replace(/^- (.+)$/gm, '<li>$1</li>');
+    // 連続する<li>を<ul>で囲む
+    html = html.replace(/((?:<li>.*<\/li>\n?)+)/g, '<ul class="mb-2">$1</ul>');
+
+    // 水平線
+    html = html.replace(/^---$/gm, '<hr class="my-3">');
+
+    // 改行
+    html = html.replace(/\n\n/g, '</p><p>');
+    html = '<p>' + html + '</p>';
+
+    // 空の<p>を除去
+    html = html.replace(/<p>\s*<\/p>/g, '');
+
+    return html;
+}
+
+// ============================================
+// 詳細セクションを閉じる
+// ============================================
+function closeDetail() {
+    document.getElementById('detailSection').style.display = 'none';
+    document.querySelectorAll('.dept-row').forEach(r => r.classList.remove('active'));
+    currentDept = null;
+    currentData = null;
 }

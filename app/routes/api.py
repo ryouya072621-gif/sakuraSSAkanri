@@ -1482,3 +1482,303 @@ def get_monthly_goals():
         'trend': trend_data,
         'months': all_months,
     })
+
+
+# ============================================
+# 部門月次比較（前月 vs 今月）
+# ============================================
+
+def _month_format_expr():
+    """PostgreSQL/SQLite両対応の月フォーマット式"""
+    is_pg = str(db.engine.url).startswith('postgresql')
+    if is_pg:
+        return func.to_char(WorkRecord.work_date, 'YYYY-MM')
+    else:
+        return func.strftime('%Y-%m', WorkRecord.work_date)
+
+
+def _parse_month_range(month_str):
+    """'YYYY-MM' → (first_day, last_day) を返す"""
+    from calendar import monthrange
+    parts = month_str.split('-')
+    year, month = int(parts[0]), int(parts[1])
+    last_day = monthrange(year, month)[1]
+    from datetime import date
+    return date(year, month, 1), date(year, month, last_day)
+
+
+def get_department_month_detail_data(department, base_month, compare_month):
+    """部門月次比較の詳細データを取得（API/AI共用ヘルパー）"""
+    base_start, base_end = _parse_month_range(base_month)
+    comp_start, comp_end = _parse_month_range(compare_month)
+
+    CategoryMapping.clear_cache()
+
+    # --- サマリー ---
+    def _sum_for_month(start, end):
+        return db.session.query(
+            func.coalesce(func.sum(WorkRecord.quantity), 0),
+            func.coalesce(func.sum(WorkRecord.total_amount), 0),
+        ).filter(
+            WorkRecord.category1 == department,
+            WorkRecord.work_date >= start,
+            WorkRecord.work_date <= end,
+        ).first()
+
+    base_hours, base_cost = _sum_for_month(base_start, base_end)
+    comp_hours, comp_cost = _sum_for_month(comp_start, comp_end)
+    base_hours = float(base_hours or 0)
+    comp_hours = float(comp_hours or 0)
+    base_cost = float(base_cost or 0)
+    comp_cost = float(comp_cost or 0)
+    diff_hours = comp_hours - base_hours
+    diff_pct = round(diff_hours / base_hours * 100, 1) if base_hours > 0 else (0 if diff_hours == 0 else None)
+
+    summary = {
+        'base_hours': round(base_hours, 1),
+        'compare_hours': round(comp_hours, 1),
+        'diff_hours': round(diff_hours, 1),
+        'diff_pct': diff_pct,
+        'base_cost': int(base_cost),
+        'compare_cost': int(comp_cost),
+    }
+
+    # --- カテゴリ別比較 ---
+    def _category_breakdown(start, end):
+        rows = db.session.query(
+            WorkRecord.category2,
+            WorkRecord.work_name,
+            func.sum(WorkRecord.quantity).label('hours'),
+        ).filter(
+            WorkRecord.category1 == department,
+            WorkRecord.work_date >= start,
+            WorkRecord.work_date <= end,
+        ).group_by(WorkRecord.category2, WorkRecord.work_name).all()
+
+        cat_hours = {}
+        for cat2, work_name, hours in rows:
+            display_cat = CategoryMapping.auto_categorize(cat2, work_name)
+            cat_hours[display_cat] = cat_hours.get(display_cat, 0) + (hours or 0)
+        return cat_hours
+
+    base_cats = _category_breakdown(base_start, base_end)
+    comp_cats = _category_breakdown(comp_start, comp_end)
+    all_cats = sorted(set(list(base_cats.keys()) + list(comp_cats.keys())))
+
+    category_breakdown = []
+    for cat in all_cats:
+        bh = base_cats.get(cat, 0)
+        ch = comp_cats.get(cat, 0)
+        d = ch - bh
+        pct = round(d / bh * 100, 1) if bh > 0 else (0 if d == 0 else None)
+        category_breakdown.append({
+            'category': cat,
+            'base_hours': round(bh, 1),
+            'compare_hours': round(ch, 1),
+            'diff_hours': round(d, 1),
+            'diff_pct': pct,
+        })
+
+    # --- スタッフ別比較 ---
+    def _staff_breakdown(start, end):
+        return db.session.query(
+            WorkRecord.staff_name,
+            func.sum(WorkRecord.quantity).label('hours'),
+        ).filter(
+            WorkRecord.category1 == department,
+            WorkRecord.work_date >= start,
+            WorkRecord.work_date <= end,
+        ).group_by(WorkRecord.staff_name).all()
+
+    base_staff_rows = _staff_breakdown(base_start, base_end)
+    comp_staff_rows = _staff_breakdown(comp_start, comp_end)
+    base_staff = {r.staff_name: float(r.hours or 0) for r in base_staff_rows}
+    comp_staff = {r.staff_name: float(r.hours or 0) for r in comp_staff_rows}
+    all_staff = sorted(set(list(base_staff.keys()) + list(comp_staff.keys())))
+
+    staff_breakdown = []
+    for name in all_staff:
+        bh = base_staff.get(name, 0)
+        ch = comp_staff.get(name, 0)
+        d = ch - bh
+        pct = round(d / bh * 100, 1) if bh > 0 else (0 if d == 0 else None)
+        staff_breakdown.append({
+            'staff_name': name,
+            'base_hours': round(bh, 1),
+            'compare_hours': round(ch, 1),
+            'diff_hours': round(d, 1),
+            'diff_pct': pct,
+        })
+
+    # --- 業務名別変動TOP ---
+    def _work_breakdown(start, end):
+        return db.session.query(
+            WorkRecord.work_name,
+            func.sum(WorkRecord.quantity).label('hours'),
+        ).filter(
+            WorkRecord.category1 == department,
+            WorkRecord.work_date >= start,
+            WorkRecord.work_date <= end,
+        ).group_by(WorkRecord.work_name).all()
+
+    base_work_rows = _work_breakdown(base_start, base_end)
+    comp_work_rows = _work_breakdown(comp_start, comp_end)
+    base_work = {r.work_name: float(r.hours or 0) for r in base_work_rows}
+    comp_work = {r.work_name: float(r.hours or 0) for r in comp_work_rows}
+    all_work = set(list(base_work.keys()) + list(comp_work.keys()))
+
+    work_changes = []
+    for name in all_work:
+        if not name:
+            continue
+        bh = base_work.get(name, 0)
+        ch = comp_work.get(name, 0)
+        d = ch - bh
+        pct = round(d / bh * 100, 1) if bh > 0 else (0 if d == 0 else None)
+        work_changes.append({
+            'work_name': name,
+            'base_hours': round(bh, 1),
+            'compare_hours': round(ch, 1),
+            'diff_hours': round(d, 1),
+            'diff_pct': pct,
+            'abs_diff': round(abs(d), 1),
+        })
+
+    work_changes.sort(key=lambda x: x['abs_diff'], reverse=True)
+    work_changes = work_changes[:30]
+
+    return {
+        'department': department,
+        'base_month': base_month,
+        'compare_month': compare_month,
+        'summary': summary,
+        'category_breakdown': category_breakdown,
+        'staff_breakdown': staff_breakdown,
+        'work_changes': work_changes,
+    }
+
+
+@bp.route('/analytics/department-month-comparison')
+def get_department_month_comparison():
+    """全部門の前月vs今月比較データ"""
+    base_month = request.args.get('base_month')
+    compare_month = request.args.get('compare_month')
+
+    # 利用可能な月を取得
+    is_pg = str(db.engine.url).startswith('postgresql')
+    if is_pg:
+        month_expr = func.to_char(WorkRecord.work_date, 'YYYY-MM')
+    else:
+        month_expr = func.strftime('%Y-%m', WorkRecord.work_date)
+
+    month_rows = db.session.query(
+        month_expr.label('ym')
+    ).distinct().order_by(month_expr.desc()).all()
+    available_months = [r.ym for r in month_rows if r.ym]
+
+    # 未指定時は最新2ヶ月を自動選択
+    if not compare_month and len(available_months) >= 1:
+        compare_month = available_months[0]
+    if not base_month and len(available_months) >= 2:
+        base_month = available_months[1]
+
+    if not base_month or not compare_month:
+        return jsonify({
+            'base_month': base_month,
+            'compare_month': compare_month,
+            'available_months': available_months,
+            'departments': [],
+        })
+
+    base_start, base_end = _parse_month_range(base_month)
+    comp_start, comp_end = _parse_month_range(compare_month)
+
+    # 部門一覧
+    dept_query = db.session.query(WorkRecord.category1).distinct()
+    departments = [d.category1 for d in dept_query.all() if d.category1]
+
+    default_rate = AppSetting.get_value('default_hourly_rate', 2000)
+    hourly_rate = int(request.args.get('hourly_rate', default_rate))
+
+    dept_data = []
+    for dept in sorted(departments):
+        # 前月
+        base_row = db.session.query(
+            func.coalesce(func.sum(WorkRecord.quantity), 0),
+            func.coalesce(func.sum(WorkRecord.total_amount), 0),
+            func.count(distinct(WorkRecord.staff_name)),
+        ).filter(
+            WorkRecord.category1 == dept,
+            WorkRecord.work_date >= base_start,
+            WorkRecord.work_date <= base_end,
+        ).first()
+
+        # 今月
+        comp_row = db.session.query(
+            func.coalesce(func.sum(WorkRecord.quantity), 0),
+            func.coalesce(func.sum(WorkRecord.total_amount), 0),
+            func.count(distinct(WorkRecord.staff_name)),
+        ).filter(
+            WorkRecord.category1 == dept,
+            WorkRecord.work_date >= comp_start,
+            WorkRecord.work_date <= comp_end,
+        ).first()
+
+        bh = float(base_row[0] or 0)
+        ch = float(comp_row[0] or 0)
+        bc = float(base_row[1] or 0)
+        cc = float(comp_row[1] or 0)
+        diff_h = ch - bh
+        diff_c = cc - bc
+
+        dept_data.append({
+            'department': dept,
+            'base_hours': round(bh, 1),
+            'compare_hours': round(ch, 1),
+            'diff_hours': round(diff_h, 1),
+            'diff_hours_pct': round(diff_h / bh * 100, 1) if bh > 0 else (0 if diff_h == 0 else None),
+            'base_cost': int(bc),
+            'compare_cost': int(cc),
+            'diff_cost': int(diff_c),
+            'diff_cost_pct': round(diff_c / bc * 100, 1) if bc > 0 else (0 if diff_c == 0 else None),
+            'staff_count_base': base_row[2] or 0,
+            'staff_count_compare': comp_row[2] or 0,
+        })
+
+    return jsonify({
+        'base_month': base_month,
+        'compare_month': compare_month,
+        'available_months': available_months,
+        'departments': dept_data,
+    })
+
+
+@bp.route('/analytics/department-month-detail')
+def get_department_month_detail():
+    """個別部門の前月vs今月詳細比較データ"""
+    department = request.args.get('department')
+    if not department:
+        return jsonify({'error': 'department parameter is required'}), 400
+
+    base_month = request.args.get('base_month')
+    compare_month = request.args.get('compare_month')
+
+    # 未指定時は最新2ヶ月を自動選択
+    if not base_month or not compare_month:
+        is_pg = str(db.engine.url).startswith('postgresql')
+        if is_pg:
+            month_expr = func.to_char(WorkRecord.work_date, 'YYYY-MM')
+        else:
+            month_expr = func.strftime('%Y-%m', WorkRecord.work_date)
+        month_rows = db.session.query(month_expr.label('ym')).distinct().order_by(month_expr.desc()).all()
+        months = [r.ym for r in month_rows if r.ym]
+        if not compare_month and len(months) >= 1:
+            compare_month = months[0]
+        if not base_month and len(months) >= 2:
+            base_month = months[1]
+
+    if not base_month or not compare_month:
+        return jsonify({'error': 'insufficient month data'}), 400
+
+    data = get_department_month_detail_data(department, base_month, compare_month)
+    return jsonify(data)

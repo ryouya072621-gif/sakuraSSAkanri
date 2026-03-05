@@ -594,6 +594,73 @@ def generate_report():
 
 
 # ============================================
+# 部門月次比較AIレポート
+# ============================================
+
+@bp.route('/department-month-report', methods=['POST'])
+def department_month_report():
+    """
+    部門の前月vs今月をAIが分析してレポート生成
+
+    Request body:
+    {
+        "department": "部門名",
+        "base_month": "2026-01",
+        "compare_month": "2026-02"
+    }
+    """
+    data = request.get_json()
+    department = data.get('department')
+    base_month = data.get('base_month')
+    compare_month = data.get('compare_month')
+
+    if not department:
+        return jsonify({'error': 'department is required'}), 400
+    if not base_month or not compare_month:
+        return jsonify({'error': 'base_month and compare_month are required'}), 400
+
+    try:
+        # api.pyの共用ヘルパーでデータ取得
+        from app.routes.api import get_department_month_detail_data
+        detail_data = get_department_month_detail_data(department, base_month, compare_month)
+
+        # AIプロンプト構築・実行
+        from app.services.prompts import (
+            DEPARTMENT_MONTH_REPORT_SYSTEM_PROMPT,
+            build_department_month_report_prompt
+        )
+
+        provider = get_ai_provider()
+        user_prompt = build_department_month_report_prompt(
+            department, base_month, compare_month, detail_data
+        )
+
+        report_text = provider._make_request(
+            DEPARTMENT_MONTH_REPORT_SYSTEM_PROMPT,
+            user_prompt,
+            max_tokens=4096
+        )
+
+        return jsonify({
+            'report': report_text.strip(),
+            'department': department,
+            'generated_at': datetime.utcnow().isoformat()
+        })
+
+    except AIProviderError as e:
+        logger.error(f'Department month report error: {e}')
+        return jsonify({
+            'error': 'AI機能が一時的に利用できません',
+            'message': str(e)
+        }), 503
+    except Exception as e:
+        logger.error(f'Unexpected department report error: {e}')
+        return jsonify({
+            'error': f'レポート生成エラー: {str(e)}'
+        }), 500
+
+
+# ============================================
 # ヘルパー関数
 # ============================================
 
