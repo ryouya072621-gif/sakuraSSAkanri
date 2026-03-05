@@ -1507,6 +1507,28 @@ def _parse_month_range(month_str):
     return date(year, month, 1), date(year, month, last_day)
 
 
+def _sum_hours_only(department, start, end):
+    """時間制レコードのみ合計（件数制を除外）。(hours, count) を返す"""
+    rows = db.session.query(
+        WorkRecord.work_name,
+        func.sum(WorkRecord.quantity).label('qty'),
+    ).filter(
+        WorkRecord.category1 == department,
+        WorkRecord.work_date >= start,
+        WorkRecord.work_date <= end,
+    ).group_by(WorkRecord.work_name).all()
+
+    total_hours = 0.0
+    total_count = 0.0
+    for work_name, qty in rows:
+        q = float(qty or 0)
+        if get_unit_type(work_name) == 'count':
+            total_count += q
+        else:
+            total_hours += q
+    return total_hours, total_count
+
+
 def get_department_month_detail_data(department, base_month, compare_month):
     """部門月次比較の詳細データを取得（API/AI共用ヘルパー）"""
     base_start, base_end = _parse_month_range(base_month)
@@ -1514,23 +1536,28 @@ def get_department_month_detail_data(department, base_month, compare_month):
 
     CategoryMapping.clear_cache()
 
-    # --- サマリー ---
-    def _sum_for_month(start, end):
-        return db.session.query(
-            func.coalesce(func.sum(WorkRecord.quantity), 0),
-            func.coalesce(func.sum(WorkRecord.total_amount), 0),
-        ).filter(
-            WorkRecord.category1 == department,
-            WorkRecord.work_date >= start,
-            WorkRecord.work_date <= end,
-        ).first()
+    # --- サマリー（時間制のみ） ---
+    base_hours, base_count = _sum_hours_only(department, base_start, base_end)
+    comp_hours, comp_count = _sum_hours_only(department, comp_start, comp_end)
 
-    base_hours, base_cost = _sum_for_month(base_start, base_end)
-    comp_hours, comp_cost = _sum_for_month(comp_start, comp_end)
-    base_hours = float(base_hours or 0)
-    comp_hours = float(comp_hours or 0)
-    base_cost = float(base_cost or 0)
-    comp_cost = float(comp_cost or 0)
+    # コストは全レコード合計（コストは混在しない）
+    base_cost_val = db.session.query(
+        func.coalesce(func.sum(WorkRecord.total_amount), 0),
+    ).filter(
+        WorkRecord.category1 == department,
+        WorkRecord.work_date >= base_start,
+        WorkRecord.work_date <= base_end,
+    ).scalar() or 0
+    comp_cost_val = db.session.query(
+        func.coalesce(func.sum(WorkRecord.total_amount), 0),
+    ).filter(
+        WorkRecord.category1 == department,
+        WorkRecord.work_date >= comp_start,
+        WorkRecord.work_date <= comp_end,
+    ).scalar() or 0
+
+    base_cost = float(base_cost_val)
+    comp_cost = float(comp_cost_val)
     diff_hours = comp_hours - base_hours
     diff_pct = round(diff_hours / base_hours * 100, 1) if base_hours > 0 else (0 if diff_hours == 0 else None)
 
@@ -1543,12 +1570,12 @@ def get_department_month_detail_data(department, base_month, compare_month):
         'compare_cost': int(comp_cost),
     }
 
-    # --- カテゴリ別比較 ---
+    # --- カテゴリ別比較（時間制のみ） ---
     def _category_breakdown(start, end):
         rows = db.session.query(
             WorkRecord.category2,
             WorkRecord.work_name,
-            func.sum(WorkRecord.quantity).label('hours'),
+            func.sum(WorkRecord.quantity).label('qty'),
         ).filter(
             WorkRecord.category1 == department,
             WorkRecord.work_date >= start,
@@ -1556,9 +1583,11 @@ def get_department_month_detail_data(department, base_month, compare_month):
         ).group_by(WorkRecord.category2, WorkRecord.work_name).all()
 
         cat_hours = {}
-        for cat2, work_name, hours in rows:
+        for cat2, work_name, qty in rows:
+            if get_unit_type(work_name) == 'count':
+                continue
             display_cat = CategoryMapping.auto_categorize(cat2, work_name)
-            cat_hours[display_cat] = cat_hours.get(display_cat, 0) + (hours or 0)
+            cat_hours[display_cat] = cat_hours.get(display_cat, 0) + float(qty or 0)
         return cat_hours
 
     base_cats = _category_breakdown(base_start, base_end)
@@ -1579,21 +1608,27 @@ def get_department_month_detail_data(department, base_month, compare_month):
             'diff_pct': pct,
         })
 
-    # --- スタッフ別比較 ---
+    # --- スタッフ別比較（時間制のみ） ---
     def _staff_breakdown(start, end):
-        return db.session.query(
+        rows = db.session.query(
             WorkRecord.staff_name,
-            func.sum(WorkRecord.quantity).label('hours'),
+            WorkRecord.work_name,
+            func.sum(WorkRecord.quantity).label('qty'),
         ).filter(
             WorkRecord.category1 == department,
             WorkRecord.work_date >= start,
             WorkRecord.work_date <= end,
-        ).group_by(WorkRecord.staff_name).all()
+        ).group_by(WorkRecord.staff_name, WorkRecord.work_name).all()
 
-    base_staff_rows = _staff_breakdown(base_start, base_end)
-    comp_staff_rows = _staff_breakdown(comp_start, comp_end)
-    base_staff = {r.staff_name: float(r.hours or 0) for r in base_staff_rows}
-    comp_staff = {r.staff_name: float(r.hours or 0) for r in comp_staff_rows}
+        staff_hours = {}
+        for staff_name, work_name, qty in rows:
+            if get_unit_type(work_name) == 'count':
+                continue
+            staff_hours[staff_name] = staff_hours.get(staff_name, 0) + float(qty or 0)
+        return staff_hours
+
+    base_staff = _staff_breakdown(base_start, base_end)
+    comp_staff = _staff_breakdown(comp_start, comp_end)
     all_staff = sorted(set(list(base_staff.keys()) + list(comp_staff.keys())))
 
     staff_breakdown = []
@@ -1614,7 +1649,7 @@ def get_department_month_detail_data(department, base_month, compare_month):
     def _work_breakdown(start, end):
         return db.session.query(
             WorkRecord.work_name,
-            func.sum(WorkRecord.quantity).label('hours'),
+            func.sum(WorkRecord.quantity).label('qty'),
         ).filter(
             WorkRecord.category1 == department,
             WorkRecord.work_date >= start,
@@ -1623,8 +1658,8 @@ def get_department_month_detail_data(department, base_month, compare_month):
 
     base_work_rows = _work_breakdown(base_start, base_end)
     comp_work_rows = _work_breakdown(comp_start, comp_end)
-    base_work = {r.work_name: float(r.hours or 0) for r in base_work_rows}
-    comp_work = {r.work_name: float(r.hours or 0) for r in comp_work_rows}
+    base_work = {r.work_name: float(r.qty or 0) for r in base_work_rows}
+    comp_work = {r.work_name: float(r.qty or 0) for r in comp_work_rows}
     all_work = set(list(base_work.keys()) + list(comp_work.keys()))
 
     work_changes = []
@@ -1635,13 +1670,16 @@ def get_department_month_detail_data(department, base_month, compare_month):
         ch = comp_work.get(name, 0)
         d = ch - bh
         pct = round(d / bh * 100, 1) if bh > 0 else (0 if d == 0 else None)
+        ut = get_unit_type(name)
         work_changes.append({
             'work_name': name,
-            'base_hours': round(bh, 1),
-            'compare_hours': round(ch, 1),
-            'diff_hours': round(d, 1),
+            'base_value': round(bh, 1),
+            'compare_value': round(ch, 1),
+            'diff_value': round(d, 1),
             'diff_pct': pct,
             'abs_diff': round(abs(d), 1),
+            'unit_type': ut,
+            'unit_suffix': 'h' if ut == 'hours' else '件',
         })
 
     work_changes.sort(key=lambda x: x['abs_diff'], reverse=True)
@@ -1702,9 +1740,12 @@ def get_department_month_comparison():
 
     dept_data = []
     for dept in sorted(departments):
-        # 前月
-        base_row = db.session.query(
-            func.coalesce(func.sum(WorkRecord.quantity), 0),
+        # 時間制のみ合計（件数制を除外）
+        bh, b_count = _sum_hours_only(dept, base_start, base_end)
+        ch, c_count = _sum_hours_only(dept, comp_start, comp_end)
+
+        # コスト・スタッフ数は従来通り
+        base_cost_row = db.session.query(
             func.coalesce(func.sum(WorkRecord.total_amount), 0),
             func.count(distinct(WorkRecord.staff_name)),
         ).filter(
@@ -1713,9 +1754,7 @@ def get_department_month_comparison():
             WorkRecord.work_date <= base_end,
         ).first()
 
-        # 今月
-        comp_row = db.session.query(
-            func.coalesce(func.sum(WorkRecord.quantity), 0),
+        comp_cost_row = db.session.query(
             func.coalesce(func.sum(WorkRecord.total_amount), 0),
             func.count(distinct(WorkRecord.staff_name)),
         ).filter(
@@ -1724,10 +1763,8 @@ def get_department_month_comparison():
             WorkRecord.work_date <= comp_end,
         ).first()
 
-        bh = float(base_row[0] or 0)
-        ch = float(comp_row[0] or 0)
-        bc = float(base_row[1] or 0)
-        cc = float(comp_row[1] or 0)
+        bc = float(base_cost_row[0] or 0)
+        cc = float(comp_cost_row[0] or 0)
         diff_h = ch - bh
         diff_c = cc - bc
 
@@ -1737,12 +1774,14 @@ def get_department_month_comparison():
             'compare_hours': round(ch, 1),
             'diff_hours': round(diff_h, 1),
             'diff_hours_pct': round(diff_h / bh * 100, 1) if bh > 0 else (0 if diff_h == 0 else None),
+            'base_count': round(b_count, 1),
+            'compare_count': round(c_count, 1),
             'base_cost': int(bc),
             'compare_cost': int(cc),
             'diff_cost': int(diff_c),
             'diff_cost_pct': round(diff_c / bc * 100, 1) if bc > 0 else (0 if diff_c == 0 else None),
-            'staff_count_base': base_row[2] or 0,
-            'staff_count_compare': comp_row[2] or 0,
+            'staff_count_base': base_cost_row[1] or 0,
+            'staff_count_compare': comp_cost_row[1] or 0,
         })
 
     return jsonify({
@@ -1782,3 +1821,40 @@ def get_department_month_detail():
 
     data = get_department_month_detail_data(department, base_month, compare_month)
     return jsonify(data)
+
+
+@bp.route('/analytics/department-monthly-trend')
+def get_department_monthly_trend():
+    """部門の月次推移データ（時間制のみ）"""
+    department = request.args.get('department')
+    if not department:
+        return jsonify({'error': 'department parameter is required'}), 400
+
+    month_expr = _month_format_expr()
+
+    # 月ごと・work_name別に集計（unit_type判定のため）
+    rows = db.session.query(
+        month_expr.label('ym'),
+        WorkRecord.work_name,
+        func.sum(WorkRecord.quantity).label('qty'),
+    ).filter(
+        WorkRecord.category1 == department,
+    ).group_by(month_expr, WorkRecord.work_name).all()
+
+    # 月ごとに時間制のみ合計
+    month_hours = {}
+    for ym, work_name, qty in rows:
+        if not ym:
+            continue
+        if get_unit_type(work_name) == 'count':
+            continue
+        month_hours[ym] = month_hours.get(ym, 0) + float(qty or 0)
+
+    # 時系列ソート
+    sorted_months = sorted(month_hours.keys())
+
+    return jsonify({
+        'department': department,
+        'months': sorted_months,
+        'hours': [round(month_hours[m], 1) for m in sorted_months],
+    })

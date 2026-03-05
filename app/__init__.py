@@ -104,6 +104,13 @@ def _migrate_value_rank():
         db.session.commit()
 
 
+def _ensure_unit_type_rules():
+    """UnitTypeRuleが空の場合、デフォルトルールを投入"""
+    from app.models import UnitTypeRule
+    if UnitTypeRule.query.first() is None:
+        UnitTypeRule.seed_default_rules()
+
+
 def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
@@ -123,5 +130,6 @@ def create_app(config_class=Config):
         db.create_all()
         _migrate_value_rank()
         init_default_data()
+        _ensure_unit_type_rules()
 
     return app

@@ -40,8 +40,5 @@ def project_analysis():
 
 @bp.route('/department-overview')
 def department_overview():
-    """部門比較ダッシュボード"""
-    record_count = WorkRecord.query.count()
-    if record_count == 0:
-        return redirect(url_for('upload.index'))
-    return render_template('department_overview.html')
+    """部門比較 → ダッシュボードに統合済み"""
+    return redirect(url_for('main.dashboard'))

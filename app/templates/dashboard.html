@@ -9,6 +9,22 @@
     .main-content { margin-left: 0 !important; }
     .no-print { display: none !important; }
 }
+/* 部門比較セクション用 */
+.diff-positive { color: #dc2626; font-weight: 600; }
+.diff-negative { color: #16a34a; font-weight: 600; }
+.diff-zero { color: #6b7280; }
+.dept-row { cursor: pointer; transition: background 0.15s; }
+.dept-row:hover { background: #f5f3ff; }
+.dept-row.active { background: #ede9fe; }
+.section-title { font-size: 1.1rem; font-weight: 600; border-left: 4px solid #6366f1; padding-left: 12px; }
+.kpi-card { text-align: center; }
+.kpi-card .value { font-size: 1.5rem; font-weight: 700; }
+.kpi-card .label { font-size: 0.8rem; color: #6b7280; }
+.ai-report-content { line-height: 1.8; }
+.ai-report-content h5 { margin-top: 1rem; margin-bottom: 0.5rem; color: #4338ca; }
+.ai-report-content ul { padding-left: 1.5rem; }
+.ai-report-content li { margin-bottom: 0.3rem; }
+#detailSection { display: none; }
 </style>
 {% endblock %}
 
@@ -71,10 +87,24 @@
             8%削減のターゲットを見つけるには、赤色で表示される「その他・不明・移動」の割合に注目してください。
         </div>
 
+        <hr>
+        <div class="mb-3">
+            <label class="form-label fw-bold"><i class="bi bi-building me-1"></i>月次部門比較</label>
+        </div>
+        <div class="mb-2">
+            <label class="form-label small">基準月</label>
+            <select id="baseMonth" class="form-select form-select-sm"></select>
+        </div>
+        <div class="mb-2">
+            <div class="text-center text-muted"><i class="bi bi-arrow-down"></i></div>
+            <label class="form-label small">比較月</label>
+            <select id="compareMonth" class="form-select form-select-sm"></select>
+        </div>
+        <button class="btn btn-outline-primary btn-sm w-100 mb-3" onclick="loadOverview()">
+            <i class="bi bi-arrow-clockwise me-1"></i>部門比較を更新
+        </button>
+
         <div class="mt-4 d-flex flex-column gap-2">
-            <a href="{{ url_for('main.department_overview') }}" class="btn btn-outline-warning btn-sm w-100">
-                <i class="bi bi-building me-1"></i>部門比較ダッシュボード
-            </a>
             <a href="{{ url_for('main.project_analysis') }}" class="btn btn-outline-success btn-sm w-100">
                 <i class="bi bi-diagram-3 me-1"></i>プロジェクト別分析
             </a>
@@ -280,6 +310,143 @@
                 </div>
             </div>
         </div>
+
+        <!-- ========== 部門月次比較セクション ========== -->
+        <div class="card mt-4 mb-4">
+            <div class="card-header bg-white">
+                <span class="section-title"><i class="bi bi-building me-2"></i>全部門 月次比較</span>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-light border text-center mb-3">
+                    <strong id="periodLabel">月を選択して「部門比較を更新」をクリック</strong>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>部門</th>
+                                <th class="text-end">前月 時間</th>
+                                <th class="text-end">今月 時間</th>
+                                <th class="text-end">差分</th>
+                                <th class="text-end">前月 コスト</th>
+                                <th class="text-end">今月 コスト</th>
+                                <th class="text-end">差分</th>
+                            </tr>
+                        </thead>
+                        <tbody id="overviewBody">
+                            <tr><td colspan="7" class="text-center text-muted py-4">
+                                サイドバーの「部門比較を更新」で読み込み
+                            </td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- 部門詳細セクション -->
+        <div id="detailSection">
+            <hr class="my-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h4 class="mb-0">
+                    <i class="bi bi-search me-2"></i>
+                    <span id="detailDeptName">-</span> の詳細
+                </h4>
+                <button class="btn btn-outline-secondary btn-sm no-print" onclick="closeDetail()">
+                    <i class="bi bi-x-lg me-1"></i>閉じる
+                </button>
+            </div>
+
+            <!-- KPIカード -->
+            <div class="row g-3 mb-4" id="detailKPIs"></div>
+
+            <!-- タブ -->
+            <ul class="nav nav-tabs" role="tablist">
+                <li class="nav-item">
+                    <button class="nav-link active" id="deptTrendTab" data-bs-toggle="tab" data-bs-target="#deptTrendPane">
+                        <i class="bi bi-graph-up me-1"></i>月次推移
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#catPane">
+                        <i class="bi bi-grid me-1"></i>カテゴリ別
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#staffPane">
+                        <i class="bi bi-people me-1"></i>スタッフ別
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#workPane">
+                        <i class="bi bi-list-task me-1"></i>業務変動TOP
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#aiPane">
+                        <i class="bi bi-robot me-1"></i>AI分析
+                    </button>
+                </li>
+            </ul>
+
+            <div class="tab-content border border-top-0 rounded-bottom p-3">
+                <!-- 月次推移 -->
+                <div class="tab-pane fade show active" id="deptTrendPane">
+                    <div style="height:350px;"><canvas id="deptTrendCanvas"></canvas></div>
+                </div>
+
+                <!-- カテゴリ別 -->
+                <div class="tab-pane fade" id="catPane">
+                    <div style="height:350px;"><canvas id="deptCatCanvas"></canvas></div>
+                    <div class="table-responsive mt-3">
+                        <table class="table table-sm" id="catTable">
+                            <thead><tr>
+                                <th>カテゴリ</th><th class="text-end">前月</th>
+                                <th class="text-end">今月</th><th class="text-end">差分</th><th class="text-end">変化率</th>
+                            </tr></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- スタッフ別 -->
+                <div class="tab-pane fade" id="staffPane">
+                    <div style="height:350px;"><canvas id="deptStaffCanvas"></canvas></div>
+                    <div class="table-responsive mt-3">
+                        <table class="table table-sm" id="staffTable">
+                            <thead><tr>
+                                <th>スタッフ</th><th class="text-end">前月</th>
+                                <th class="text-end">今月</th><th class="text-end">差分</th><th class="text-end">変化率</th>
+                            </tr></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 業務変動TOP -->
+                <div class="tab-pane fade" id="workPane">
+                    <div class="table-responsive">
+                        <table class="table table-sm" id="workTable">
+                            <thead><tr>
+                                <th>業務名</th><th class="text-end">前月</th>
+                                <th class="text-end">今月</th><th class="text-end">差分</th><th class="text-end">変化率</th>
+                            </tr></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- AI分析 -->
+                <div class="tab-pane fade" id="aiPane">
+                    <div class="text-center py-4" id="aiReportPlaceholder">
+                        <p class="text-muted mb-3">AIがこの部門の前月→今月の変動を分析します。</p>
+                        <button class="btn btn-primary" onclick="generateDeptAIReport()" id="aiReportBtn">
+                            <i class="bi bi-robot me-1"></i>AI分析を実行
+                        </button>
+                    </div>
+                    <div id="aiReportContent" style="display:none;" class="ai-report-content"></div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -312,5 +479,6 @@
 </div>
 
 <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+<script src="{{ url_for('static', filename='js/department-overview.js') }}"></script>
 <script src="{{ url_for('static', filename='js/ai-features.js') }}"></script>
 {% endblock %}

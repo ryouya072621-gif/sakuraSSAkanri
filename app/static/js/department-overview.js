@@ -1,20 +1,37 @@
 // 部門比較ダッシュボード - 月次比較（事実ベース）
-let catChart = null;
-let staffChart = null;
+// ※ dashboard.js と同一ページで読み込まれるため、グローバル名に dept プレフィックスを付与
+let deptCatChart = null;
+let deptStaffChart = null;
+let deptTrendChart = null;
 let currentDept = null;
 let currentData = null;
 
-document.addEventListener('DOMContentLoaded', function() {
-    loadOverview();
+// ============================================
+// 初期化（dashboard.js から呼ばれる）
+// ============================================
+function initDepartmentOverview() {
+    // 月セレクターを埋める（データ取得はしない）
+    populateMonthSelectorsFromAPI();
 
-    // タブ切り替え時にチャートをリサイズ
-    document.querySelectorAll('[data-bs-toggle="tab"]').forEach(tab => {
+    // 詳細セクション内のタブ切り替え時にチャートをリサイズ
+    document.querySelectorAll('#detailSection [data-bs-toggle="tab"]').forEach(tab => {
         tab.addEventListener('shown.bs.tab', function() {
-            if (catChart) catChart.resize();
-            if (staffChart) staffChart.resize();
+            if (deptCatChart) deptCatChart.resize();
+            if (deptStaffChart) deptStaffChart.resize();
+            if (deptTrendChart) deptTrendChart.resize();
         });
     });
-});
+}
+
+async function populateMonthSelectorsFromAPI() {
+    try {
+        const response = await fetch('/api/analytics/department-month-comparison');
+        const data = await response.json();
+        populateMonthSelectors(data.available_months, data.base_month, data.compare_month);
+    } catch (e) {
+        console.error('Failed to populate month selectors:', e);
+    }
+}
 
 // ============================================
 // 月フォーマット
@@ -71,16 +88,16 @@ function formatCostDiff(val) {
 }
 
 // ============================================
-// XSSエスケープ
+// XSSエスケープ（dashboard.js の escapeHtml と衝突回避）
 // ============================================
-function escapeHtml(str) {
+function deptEscapeHtml(str) {
     if (!str) return '';
     const div = document.createElement('div');
     div.textContent = str;
     return div.innerHTML;
 }
 
-function escapeAttr(str) {
+function deptEscapeAttr(str) {
     if (!str) return '';
     return str.replace(/'/g, "\\'").replace(/"/g, '&quot;');
 }
@@ -145,8 +162,8 @@ function renderOverviewTable(departments, baseMonth, compMonth) {
 
     body.innerHTML = departments.map(d => `
         <tr class="dept-row ${currentDept === d.department ? 'active' : ''}"
-            onclick="selectDepartment('${escapeAttr(d.department)}', '${baseMonth}', '${compMonth}')">
-            <td class="fw-bold">${escapeHtml(d.department)}</td>
+            onclick="selectDepartment('${deptEscapeAttr(d.department)}', '${baseMonth}', '${compMonth}')">
+            <td class="fw-bold">${deptEscapeHtml(d.department)}</td>
             <td class="text-end">${d.base_hours.toFixed(1)}h</td>
             <td class="text-end">${d.compare_hours.toFixed(1)}h</td>
             <td class="text-end">${formatDiff(d.diff_hours, 'h')}</td>
@@ -176,10 +193,10 @@ function selectDepartment(dept, baseMonth, compMonth) {
     document.getElementById('aiReportBtn').disabled = false;
     document.getElementById('aiReportBtn').innerHTML = '<i class="bi bi-robot me-1"></i>AI分析を実行';
 
-    // 最初のタブに戻す
-    const catTabBtn = document.getElementById('catTab');
-    if (catTabBtn) {
-        const tab = new bootstrap.Tab(catTabBtn);
+    // 最初のタブ（月次推移）に戻す
+    const trendTabBtn = document.getElementById('deptTrendTab');
+    if (trendTabBtn) {
+        const tab = new bootstrap.Tab(trendTabBtn);
         tab.show();
     }
 
@@ -196,20 +213,27 @@ function selectDepartment(dept, baseMonth, compMonth) {
     const bm = baseMonth || document.getElementById('baseMonth').value;
     const cm = compMonth || document.getElementById('compareMonth').value;
 
-    fetch(`/api/analytics/department-month-detail?department=${encodeURIComponent(dept)}&base_month=${bm}&compare_month=${cm}`)
-        .then(r => r.json())
-        .then(data => {
-            currentData = data;
-            renderDetailKPIs(data.summary);
-            renderCategoryTab(data.category_breakdown);
-            renderStaffTab(data.staff_breakdown);
-            renderWorkTab(data.work_changes);
-        })
-        .catch(err => {
-            console.error('Failed to load detail:', err);
-            document.getElementById('detailKPIs').innerHTML =
-                '<div class="col-12 text-center text-danger py-3">詳細データの読み込みに失敗しました</div>';
-        });
+    // 詳細データと月次推移を並行取得
+    const detailUrl = `/api/analytics/department-month-detail?department=${encodeURIComponent(dept)}&base_month=${bm}&compare_month=${cm}`;
+    const trendUrl = `/api/analytics/department-monthly-trend?department=${encodeURIComponent(dept)}`;
+
+    Promise.all([
+        fetch(detailUrl).then(r => r.json()),
+        fetch(trendUrl).then(r => r.json()),
+    ])
+    .then(([data, trendData]) => {
+        currentData = data;
+        renderDetailKPIs(data.summary);
+        renderTrendChart(trendData);
+        renderCategoryTab(data.category_breakdown);
+        renderStaffTab(data.staff_breakdown);
+        renderWorkTab(data.work_changes);
+    })
+    .catch(err => {
+        console.error('Failed to load detail:', err);
+        document.getElementById('detailKPIs').innerHTML =
+            '<div class="col-12 text-center text-danger py-3">詳細データの読み込みに失敗しました</div>';
+    });
 
     // スクロール
     document.getElementById('detailSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -265,7 +289,6 @@ function renderDetailKPIs(summary) {
 // カテゴリ別タブ
 // ============================================
 function renderCategoryTab(breakdown) {
-    // テーブル
     const tbody = document.querySelector('#catTable tbody');
     if (!breakdown || breakdown.length === 0) {
         tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3">データなし</td></tr>';
@@ -274,7 +297,7 @@ function renderCategoryTab(breakdown) {
 
     tbody.innerHTML = breakdown.map(item => `
         <tr>
-            <td>${escapeHtml(item.category)}</td>
+            <td>${deptEscapeHtml(item.category)}</td>
             <td class="text-end">${item.base_hours.toFixed(1)}h</td>
             <td class="text-end">${item.compare_hours.toFixed(1)}h</td>
             <td class="text-end">${formatDiff(item.diff_hours, 'h')}</td>
@@ -283,7 +306,7 @@ function renderCategoryTab(breakdown) {
     `).join('');
 
     // チャート
-    renderGroupedBarChart('catChart', breakdown, 'category');
+    renderGroupedBarChart('deptCatCanvas', breakdown, 'category');
 }
 
 // ============================================
@@ -298,7 +321,7 @@ function renderStaffTab(breakdown) {
 
     tbody.innerHTML = breakdown.map(item => `
         <tr>
-            <td>${escapeHtml(item.staff_name)}</td>
+            <td>${deptEscapeHtml(item.staff_name)}</td>
             <td class="text-end">${item.base_hours.toFixed(1)}h</td>
             <td class="text-end">${item.compare_hours.toFixed(1)}h</td>
             <td class="text-end">${formatDiff(item.diff_hours, 'h')}</td>
@@ -307,7 +330,7 @@ function renderStaffTab(breakdown) {
     `).join('');
 
     // チャート
-    renderGroupedBarChart('staffChart', breakdown, 'staff_name');
+    renderGroupedBarChart('deptStaffCanvas', breakdown, 'staff_name');
 }
 
 // ============================================
@@ -316,19 +339,24 @@ function renderStaffTab(breakdown) {
 function renderWorkTab(changes) {
     const tbody = document.querySelector('#workTable tbody');
     if (!changes || changes.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3">データなし</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-3">データなし</td></tr>';
         return;
     }
 
-    tbody.innerHTML = changes.map(item => `
-        <tr>
-            <td>${escapeHtml(item.work_name)}</td>
-            <td class="text-end">${item.base_hours.toFixed(1)}h</td>
-            <td class="text-end">${item.compare_hours.toFixed(1)}h</td>
-            <td class="text-end">${formatDiff(item.diff_hours, 'h')}</td>
+    tbody.innerHTML = changes.map(item => {
+        const suffix = item.unit_suffix || 'h';
+        const isCount = item.unit_type === 'count';
+        const rowClass = isCount ? 'text-muted' : '';
+        return `
+        <tr class="${rowClass}">
+            <td>${deptEscapeHtml(item.work_name)}${isCount ? ' <span class="badge bg-secondary">件数</span>' : ''}</td>
+            <td class="text-end">${item.base_value.toFixed(1)}${suffix}</td>
+            <td class="text-end">${item.compare_value.toFixed(1)}${suffix}</td>
+            <td class="text-end">${formatDiff(item.diff_value, suffix)}</td>
             <td class="text-end">${formatPct(item.diff_pct)}</td>
         </tr>
-    `).join('');
+        `;
+    }).join('');
 }
 
 // ============================================
@@ -340,13 +368,13 @@ function renderGroupedBarChart(canvasId, data, labelKey) {
     const ctx = canvas.getContext('2d');
 
     // 既存チャートを破棄
-    if (canvasId === 'catChart' && catChart) {
-        catChart.destroy();
-        catChart = null;
+    if (canvasId === 'deptCatCanvas' && deptCatChart) {
+        deptCatChart.destroy();
+        deptCatChart = null;
     }
-    if (canvasId === 'staffChart' && staffChart) {
-        staffChart.destroy();
-        staffChart = null;
+    if (canvasId === 'deptStaffCanvas' && deptStaffChart) {
+        deptStaffChart.destroy();
+        deptStaffChart = null;
     }
 
     // 上位15件に制限（見やすさのため）
@@ -405,14 +433,14 @@ function renderGroupedBarChart(canvasId, data, labelKey) {
         }
     });
 
-    if (canvasId === 'catChart') catChart = chart;
-    if (canvasId === 'staffChart') staffChart = chart;
+    if (canvasId === 'deptCatCanvas') deptCatChart = chart;
+    if (canvasId === 'deptStaffCanvas') deptStaffChart = chart;
 }
 
 // ============================================
-// AI分析レポート生成
+// AI分析レポート生成（dashboard の generateAIReport と衝突回避）
 // ============================================
-function generateAIReport() {
+function generateDeptAIReport() {
     if (!currentData || !currentDept) return;
 
     const btn = document.getElementById('aiReportBtn');
@@ -441,7 +469,7 @@ function generateAIReport() {
     .then(data => {
         placeholder.style.display = 'none';
         content.style.display = 'block';
-        content.innerHTML = renderMarkdown(data.report);
+        content.innerHTML = renderDeptMarkdown(data.report);
     })
     .catch(err => {
         console.error('AI report failed:', err);
@@ -455,38 +483,93 @@ function generateAIReport() {
 // ============================================
 // 簡易Markdownレンダラ
 // ============================================
-function renderMarkdown(text) {
+function renderDeptMarkdown(text) {
     if (!text) return '';
 
-    // XSSエスケープ
-    let html = escapeHtml(text);
+    let html = deptEscapeHtml(text);
 
-    // 見出し（h5, h4）
     html = html.replace(/^##### (.+)$/gm, '<h6 class="mt-3 mb-1">$1</h6>');
     html = html.replace(/^#### (.+)$/gm, '<h5 class="mt-3 mb-2">$1</h5>');
     html = html.replace(/^### (.+)$/gm, '<h5 class="mt-3 mb-2" style="color:#4338ca">$1</h5>');
     html = html.replace(/^## (.+)$/gm, '<h5 class="mt-4 mb-2" style="color:#4338ca;font-size:1.1rem">$1</h5>');
 
-    // 太字・斜体
     html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
     html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
 
-    // リスト
     html = html.replace(/^- (.+)$/gm, '<li>$1</li>');
-    // 連続する<li>を<ul>で囲む
     html = html.replace(/((?:<li>.*<\/li>\n?)+)/g, '<ul class="mb-2">$1</ul>');
 
-    // 水平線
     html = html.replace(/^---$/gm, '<hr class="my-3">');
 
-    // 改行
     html = html.replace(/\n\n/g, '</p><p>');
     html = '<p>' + html + '</p>';
-
-    // 空の<p>を除去
     html = html.replace(/<p>\s*<\/p>/g, '');
 
     return html;
+}
+
+// ============================================
+// 月次推移折れ線グラフ
+// ============================================
+function renderTrendChart(data) {
+    const canvas = document.getElementById('deptTrendCanvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+
+    if (deptTrendChart) {
+        deptTrendChart.destroy();
+        deptTrendChart = null;
+    }
+
+    if (!data || !data.months || data.months.length === 0) {
+        return;
+    }
+
+    const labels = data.months.map(m => formatMonth(m));
+
+    deptTrendChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: '業務時間 (h)',
+                data: data.hours,
+                borderColor: '#6366f1',
+                backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                borderWidth: 2,
+                pointBackgroundColor: '#6366f1',
+                pointBorderColor: '#fff',
+                pointBorderWidth: 2,
+                pointRadius: 5,
+                pointHoverRadius: 7,
+                fill: true,
+                tension: 0.3,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: function(ctx) {
+                            return `${ctx.raw.toFixed(1)}h`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    grid: { display: false }
+                },
+                y: {
+                    beginAtZero: true,
+                    title: { display: true, text: '時間 (h)' }
+                }
+            }
+        }
+    });
 }
 
 // ============================================

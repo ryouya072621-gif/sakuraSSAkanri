@@ -96,6 +96,11 @@ async function loadDateRange() {
 
     // 初回データ読み込み
     refreshData();
+
+    // 部門比較セクションの初期化（月セレクター埋め）
+    if (typeof initDepartmentOverview === 'function') {
+        initDepartmentOverview();
+    }
 }
 
 function setDateRange(type) {

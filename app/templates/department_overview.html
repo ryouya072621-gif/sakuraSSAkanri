@@ -101,7 +101,12 @@
     <!-- タブ -->
     <ul class="nav nav-tabs" role="tablist">
       <li class="nav-item">
-        <button class="nav-link active" id="catTab" data-bs-toggle="tab" data-bs-target="#catPane">
+        <button class="nav-link active" id="trendTab" data-bs-toggle="tab" data-bs-target="#trendPane">
+          <i class="bi bi-graph-up me-1"></i>月次推移
+        </button>
+      </li>
+      <li class="nav-item">
+        <button class="nav-link" id="catTab" data-bs-toggle="tab" data-bs-target="#catPane">
           <i class="bi bi-grid me-1"></i>カテゴリ別
         </button>
       </li>
@@ -123,8 +128,13 @@
     </ul>
 
     <div class="tab-content border border-top-0 rounded-bottom p-3">
+      <!-- 月次推移 -->
+      <div class="tab-pane fade show active" id="trendPane">
+        <div style="height:350px;"><canvas id="trendChart"></canvas></div>
+      </div>
+
       <!-- カテゴリ別 -->
-      <div class="tab-pane fade show active" id="catPane">
+      <div class="tab-pane fade" id="catPane">
         <div style="height:350px;"><canvas id="catChart"></canvas></div>
         <div class="table-responsive mt-3">
           <table class="table table-sm" id="catTable">
