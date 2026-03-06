@@ -1,11 +1,23 @@
 steps:
+  # Create Artifact Registry repository (if not exists)
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: bash
+    args:
+      - '-c'
+      - |
+        gcloud artifacts repositories describe ssasakurakaitoukatu \
+          --location=asia-northeast1 2>/dev/null || \
+        gcloud artifacts repositories create ssasakurakaitoukatu \
+          --repository-format=docker \
+          --location=asia-northeast1
+
   # Build the Docker image
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['build', '-t', 'gcr.io/$PROJECT_ID/ssasakurakaitoukatu', '.']
+    args: ['build', '-t', 'asia-northeast1-docker.pkg.dev/$PROJECT_ID/ssasakurakaitoukatu/app', '.']
 
-  # Push to Container Registry
+  # Push to Artifact Registry
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['push', 'gcr.io/$PROJECT_ID/ssasakurakaitoukatu']
+    args: ['push', 'asia-northeast1-docker.pkg.dev/$PROJECT_ID/ssasakurakaitoukatu/app']
 
   # Deploy to Cloud Run
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
@@ -14,7 +26,7 @@ steps:
       - 'run'
       - 'deploy'
       - 'ssasakurakaitoukatu'
-      - '--image=gcr.io/$PROJECT_ID/ssasakurakaitoukatu'
+      - '--image=asia-northeast1-docker.pkg.dev/$PROJECT_ID/ssasakurakaitoukatu/app'
       - '--region=asia-northeast1'
       - '--platform=managed'
       - '--allow-unauthenticated'
@@ -25,4 +37,4 @@ options:
   logging: CLOUD_LOGGING_ONLY
 
 images:
-  - 'gcr.io/$PROJECT_ID/ssasakurakaitoukatu'
+  - 'asia-northeast1-docker.pkg.dev/$PROJECT_ID/ssasakurakaitoukatu/app'
