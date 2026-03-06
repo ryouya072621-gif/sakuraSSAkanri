@@ -1,16 +1,4 @@
 steps:
-  # Create Artifact Registry repository (if not exists)
-  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
-    entrypoint: bash
-    args:
-      - '-c'
-      - |
-        gcloud artifacts repositories describe ssasakurakaitoukatu \
-          --location=asia-northeast1 2>/dev/null || \
-        gcloud artifacts repositories create ssasakurakaitoukatu \
-          --repository-format=docker \
-          --location=asia-northeast1
-
   # Build the Docker image
   - name: 'gcr.io/cloud-builders/docker'
     args: ['build', '-t', 'asia-northeast1-docker.pkg.dev/$PROJECT_ID/ssasakurakaitoukatu/app', '.']
