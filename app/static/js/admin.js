@@ -53,11 +53,6 @@ function renderCategoriesTable(categories) {
             </td>
             <td>${rankBadge(cat.value_rank)}</td>
             <td>
-                ${cat.is_reduction_target
-                    ? '<span class="badge bg-danger">削減対象</span>'
-                    : '<span class="text-muted">-</span>'}
-            </td>
-            <td>
                 <span class="badge bg-secondary">${cat.keyword_count}件</span>
             </td>
             <td>
@@ -82,7 +77,6 @@ function showAddModal() {
     document.getElementById('badgeBgColorText').value = '#f3f4f6';
     document.getElementById('badgeTextColor').value = '#374151';
     document.getElementById('badgeTextColorText').value = '#374151';
-    document.getElementById('isReductionTarget').checked = false;
     document.getElementById('valueRank').value = 'A';
     updateBadgePreview();
 
@@ -108,7 +102,6 @@ function editCategory(id) {
             document.getElementById('badgeBgColorText').value = cat.badge_bg_color;
             document.getElementById('badgeTextColor').value = cat.badge_text_color;
             document.getElementById('badgeTextColorText').value = cat.badge_text_color;
-            document.getElementById('isReductionTarget').checked = cat.is_reduction_target;
             document.getElementById('valueRank').value = cat.value_rank || 'A';
             updateBadgePreview();
 
@@ -126,7 +119,6 @@ function saveCategory() {
         color: document.getElementById('categoryColorText').value,
         badge_bg_color: document.getElementById('badgeBgColorText').value,
         badge_text_color: document.getElementById('badgeTextColorText').value,
-        is_reduction_target: document.getElementById('isReductionTarget').checked,
         value_rank: document.getElementById('valueRank').value
     };
 

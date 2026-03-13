@@ -510,7 +510,6 @@ def chat():
         'trend_statistics': trend_data.get('statistics', {}),
         'weekly_trend': _get_weekly_trend(filters),
         'staff_summary': _get_staff_summary(filters),
-        'reduction_analysis': _get_reduction_analysis(filters),
         'available_categories': [c.name for c in DisplayCategory.query.all()]
     }
 
@@ -697,8 +696,7 @@ def _get_summary_data(params: dict) -> dict:
     return {
         'total_hours': round(total_hours, 1),
         'total_cost': int(total_cost),
-        'task_types': task_types,
-        'reduction_ratio': 0  # 簡略化
+        'task_types': task_types
     }
 
 
@@ -960,51 +958,3 @@ def _get_staff_summary(params: dict) -> list:
     ]
 
 
-def _get_reduction_analysis(params: dict) -> dict:
-    """削減対象業務の分析"""
-    from app.models import TaskReductionTarget
-
-    query = db.session.query(
-        WorkRecord.category2,
-        WorkRecord.work_name,
-        func.sum(WorkRecord.quantity).label('hours')
-    )
-
-    if params.get('category1'):
-        query = query.filter(WorkRecord.category1 == params['category1'])
-    if params.get('staff'):
-        query = query.filter(WorkRecord.staff_name == params['staff'])
-    if params.get('start'):
-        query = query.filter(WorkRecord.work_date >= datetime.strptime(params['start'], '%Y-%m-%d').date())
-    if params.get('end'):
-        query = query.filter(WorkRecord.work_date <= datetime.strptime(params['end'], '%Y-%m-%d').date())
-
-    results = query.group_by(WorkRecord.category2, WorkRecord.work_name).all()
-
-    total_hours = 0
-    reduction_hours = 0
-    reduction_tasks = []
-
-    for cat2, work_name, hours in results:
-        total_hours += hours or 0
-        display_cat = CategoryMapping.auto_categorize(cat2, work_name)
-        is_category_reduction = CategoryMapping.is_target_for_reduction(display_cat)
-        is_task_reduction = TaskReductionTarget.is_work_reduction_target(work_name)
-
-        if is_category_reduction or is_task_reduction:
-            reduction_hours += hours or 0
-            reduction_tasks.append({
-                'work_name': work_name,
-                'hours': round(hours or 0, 1),
-                'reason': 'カテゴリ対象' if is_category_reduction else '業務名対象'
-            })
-
-    # 上位5件のみ
-    reduction_tasks = sorted(reduction_tasks, key=lambda x: x['hours'], reverse=True)[:5]
-
-    return {
-        'total_hours': round(total_hours, 1),
-        'reduction_hours': round(reduction_hours, 1),
-        'reduction_ratio': round(reduction_hours / total_hours * 100, 1) if total_hours > 0 else 0,
-        'top_reduction_tasks': reduction_tasks
-    }

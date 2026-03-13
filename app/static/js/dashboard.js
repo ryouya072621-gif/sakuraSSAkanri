@@ -181,7 +181,6 @@ async function loadSummary(qs) {
     document.getElementById('totalCount').textContent = data.total_count.toLocaleString();
     document.getElementById('totalCost').textContent = data.estimated_cost.toLocaleString();
     document.getElementById('taskTypes').textContent = data.task_types;
-    document.getElementById('reductionRatio').textContent = data.reduction_ratio;
 }
 
 async function loadCategoryChart(qs) {
@@ -279,7 +278,7 @@ async function loadRanking(qs) {
     const badge = document.getElementById('rankingBadge');
 
     if (data.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-muted">データがありません</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-muted">データがありません</td></tr>';
         return;
     }
 
@@ -294,7 +293,6 @@ async function loadRanking(qs) {
                 <th class="text-end">合計時間</th>
                 <th class="text-end">推定コスト</th>
                 <th class="text-center">件数</th>
-                <th class="text-center">操作</th>
             </tr>
         `;
         badge.textContent = `${data.length}グループ`;
@@ -308,8 +306,6 @@ async function loadRanking(qs) {
                 <th class="text-end">合計時間</th>
                 <th>割合</th>
                 <th class="text-end">推定コスト</th>
-                <th>判定</th>
-                <th class="text-center">操作</th>
             </tr>
         `;
         badge.textContent = `上位${data.length}項目`;
@@ -321,13 +317,7 @@ function renderNormalRanking(data, tbody) {
     tbody.innerHTML = data.map(item => {
         const style = badgeStyles[item.category] || { bg: '#f3f4f6', text: '#374151' };
         const badgeStyle = `background-color: ${style.bg}; color: ${style.text};`;
-        const progressColor = item.is_reduction_target ? '#dc2626' : (categoryColors[item.category] || '#3b82f6');
-
-        // 業務名固有の削減対象かどうかでボタン表示を変える
-        const isTaskTarget = item.is_task_reduction_target;
-        const toggleBtn = isTaskTarget
-            ? `<button class="btn btn-sm btn-warning toggle-reduction-btn" data-work-name="${escapeHtmlAttr(item.work_name)}" title="削減対象を解除"><i class="bi bi-exclamation-triangle-fill"></i></button>`
-            : `<button class="btn btn-sm btn-outline-secondary toggle-reduction-btn" data-work-name="${escapeHtmlAttr(item.work_name)}" title="削減対象に指定"><i class="bi bi-bullseye"></i></button>`;
+        const progressColor = categoryColors[item.category] || '#3b82f6';
 
         // 単位サフィックスを取得（APIから提供されない場合はデフォルトで'h'）
         const unitSuffix = item.unit_suffix || 'h';
@@ -346,15 +336,8 @@ function renderNormalRanking(data, tbody) {
                 </div>
             </td>
             <td class="text-end">¥${item.cost.toLocaleString()}</td>
-            <td>${item.is_reduction_target ? '<span class="reduction-target">削減対象</span>' : '-'}</td>
-            <td class="text-center">${toggleBtn}</td>
         </tr>
     `}).join('');
-
-    // トグルボタンにイベントリスナーを追加
-    document.querySelectorAll('.toggle-reduction-btn').forEach(btn => {
-        btn.addEventListener('click', handleToggleReduction);
-    });
 }
 
 function renderGroupedRanking(data, tbody) {
@@ -365,13 +348,6 @@ function renderGroupedRanking(data, tbody) {
         const badgeStyle = `background-color: ${style.bg}; color: ${style.text};`;
         const groupId = `group-${idx}`;
         const hasMembers = group.members && group.members.length > 1;
-
-        // メンバーの業務名リストをJSON形式で保存
-        const memberWorkNames = group.members ? group.members.map(m => m.work_name) : [group.normalized_name];
-        const memberWorkNamesJson = JSON.stringify(memberWorkNames).replace(/"/g, '&quot;');
-
-        // グループ内に削減対象があるかチェック
-        const hasReductionTarget = group.members && group.members.some(m => m.is_reduction_target || m.is_task_reduction_target);
 
         // グループ行（親行）
         html += `
@@ -388,22 +364,12 @@ function renderGroupedRanking(data, tbody) {
             <td class="text-end"><strong>${group.total_hours}h</strong></td>
             <td class="text-end">¥${group.total_cost.toLocaleString()}</td>
             <td class="text-center">${group.member_count}件</td>
-            <td class="text-center action-cell">
-                <button class="btn btn-sm ${hasReductionTarget ? 'btn-warning' : 'btn-outline-secondary'} bulk-reduction-btn"
-                        data-work-names="${memberWorkNamesJson}"
-                        data-is-target="${hasReductionTarget}"
-                        title="${hasReductionTarget ? 'グループ全体を削減対象から解除' : 'グループ全体を削減対象に指定'}"
-                        onclick="event.stopPropagation();">
-                    <i class="bi ${hasReductionTarget ? 'bi-exclamation-triangle-fill' : 'bi-bullseye'}"></i>
-                </button>
-            </td>
         </tr>
         `;
 
         // メンバー行（子行）- 初期状態は非表示
         if (hasMembers && group.members) {
             group.members.forEach(member => {
-                const isTarget = member.is_reduction_target || member.is_task_reduction_target;
                 const memberUnitSuffix = member.unit_suffix || 'h';
                 html += `
                 <tr class="member-row" data-parent-group="${groupId}" style="display: none; background-color: #f9fafb;">
@@ -411,13 +377,11 @@ function renderGroupedRanking(data, tbody) {
                     <td class="ps-4">
                         <i class="bi bi-arrow-return-right text-muted me-1"></i>
                         ${escapeHtml(member.work_name)}
-                        ${isTarget ? '<span class="badge bg-danger ms-1">削減対象</span>' : ''}
                     </td>
                     <td></td>
                     <td></td>
                     <td class="text-end text-muted">${member.hours}${memberUnitSuffix}</td>
                     <td class="text-end text-muted">¥${member.cost.toLocaleString()}</td>
-                    <td></td>
                     <td></td>
                 </tr>
                 `;
@@ -427,21 +391,12 @@ function renderGroupedRanking(data, tbody) {
 
     tbody.innerHTML = html;
 
-    // グループ行の展開/折りたたみ（操作ボタン以外をクリックした時）
+    // グループ行の展開/折りたたみ
     document.querySelectorAll('.group-row').forEach(row => {
-        row.addEventListener('click', function(e) {
-            // 操作ボタンのセルをクリックした場合は展開しない
-            if (e.target.closest('.action-cell') || e.target.closest('.bulk-reduction-btn')) {
-                return;
-            }
+        row.addEventListener('click', function() {
             const groupId = this.dataset.groupId;
             toggleGroupExpand(groupId);
         });
-    });
-
-    // バルク削減対象ボタンにイベントリスナーを追加
-    document.querySelectorAll('.bulk-reduction-btn').forEach(btn => {
-        btn.addEventListener('click', handleBulkToggleReduction);
     });
 }
 
@@ -468,87 +423,6 @@ function toggleRankingMode(groupMode) {
     refreshData();
 }
 
-async function handleToggleReduction(event) {
-    const btn = event.currentTarget;
-    const workName = btn.getAttribute('data-work-name');
-
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
-
-    try {
-        const response = await fetch('/api/task/toggle-reduction-target', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ work_name: workName })
-        });
-
-        if (response.ok) {
-            // データを再読み込み
-            refreshData();
-        } else {
-            alert('削減対象の切り替えに失敗しました');
-            btn.disabled = false;
-            btn.innerHTML = '<i class="bi bi-bullseye"></i>';
-        }
-    } catch (e) {
-        console.error('Toggle reduction target error:', e);
-        alert('エラーが発生しました');
-        btn.disabled = false;
-        btn.innerHTML = '<i class="bi bi-bullseye"></i>';
-    }
-}
-
-async function handleBulkToggleReduction(event) {
-    const btn = event.currentTarget;
-    const workNamesJson = btn.getAttribute('data-work-names');
-    const isCurrentlyTarget = btn.getAttribute('data-is-target') === 'true';
-
-    let workNames;
-    try {
-        workNames = JSON.parse(workNamesJson);
-    } catch (e) {
-        console.error('Failed to parse work names:', e);
-        return;
-    }
-
-    // 現在削減対象なら解除、そうでなければ設定
-    const setAsTarget = !isCurrentlyTarget;
-
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
-
-    try {
-        const response = await fetch('/api/task/bulk-toggle-reduction-target', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                work_names: workNames,
-                set_as_target: setAsTarget
-            })
-        });
-
-        if (response.ok) {
-            const result = await response.json();
-            console.log(`${result.updated_count}件を${setAsTarget ? '削減対象に設定' : '削減対象から解除'}しました`);
-            // データを再読み込み
-            refreshData();
-        } else {
-            alert('削減対象の一括切り替えに失敗しました');
-            btn.disabled = false;
-            btn.innerHTML = `<i class="bi ${isCurrentlyTarget ? 'bi-exclamation-triangle-fill' : 'bi-bullseye'}"></i>`;
-        }
-    } catch (e) {
-        console.error('Bulk toggle reduction target error:', e);
-        alert('エラーが発生しました');
-        btn.disabled = false;
-        btn.innerHTML = `<i class="bi ${isCurrentlyTarget ? 'bi-exclamation-triangle-fill' : 'bi-bullseye'}"></i>`;
-    }
-}
-
 async function loadTrendChart(qs) {
     try {
         const response = await fetch(`/api/analytics/weekly-trend?${qs}`);
@@ -558,32 +432,6 @@ async function loadTrendChart(qs) {
 
         if (trendChart) {
             trendChart.destroy();
-        }
-
-        // 目標ラインの設定
-        let goalAnnotation = null;
-        if (data.goal && data.goal.target_hours) {
-            goalAnnotation = {
-                type: 'line',
-                yMin: data.goal.target_hours,
-                yMax: data.goal.target_hours,
-                borderColor: '#dc2626',
-                borderWidth: 2,
-                borderDash: [5, 5],
-                label: {
-                    display: true,
-                    content: `目標: ${data.goal.target_hours}h`,
-                    position: 'end',
-                    backgroundColor: '#dc2626',
-                    color: '#fff',
-                    font: { size: 10 }
-                }
-            };
-            // 目標インジケーターを表示
-            document.getElementById('goalIndicator').style.display = 'block';
-            document.getElementById('goalPercent').textContent = data.goal.target_percent;
-        } else {
-            document.getElementById('goalIndicator').style.display = 'none';
         }
 
         trendChart = new Chart(ctx, {
@@ -606,12 +454,7 @@ async function loadTrendChart(qs) {
                             usePointStyle: true,
                             padding: 15
                         }
-                    },
-                    annotation: goalAnnotation ? {
-                        annotations: {
-                            goalLine: goalAnnotation
-                        }
-                    } : {}
+                    }
                 },
                 scales: {
                     y: {
@@ -669,10 +512,6 @@ async function loadAlerts(qs) {
             let details = '';
             if (alert.type === 'week_over_week') {
                 details = `<small class="ms-2 text-muted">(${alert.previous_value}h → ${alert.current_value}h)</small>`;
-            } else if (alert.type === 'threshold_exceeded') {
-                details = `<small class="ms-2 text-muted">(閾値: ${alert.threshold}%)</small>`;
-            } else if (alert.type === 'goal_progress') {
-                details = `<small class="ms-2 text-muted">(達成率: ${alert.progress_percent}%)</small>`;
             }
 
             return `

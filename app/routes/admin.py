@@ -14,7 +14,6 @@ def index():
     """管理画面トップ"""
     categories_count = DisplayCategory.query.count()
     keywords_count = CategoryKeyword.query.count()
-    reduction_count = DisplayCategory.query.filter_by(is_reduction_target=True).count()
 
     settings = {
         'default_hourly_rate': AppSetting.get_value('default_hourly_rate', 2000),
@@ -25,7 +24,6 @@ def index():
     return render_template('admin/index.html',
                            categories_count=categories_count,
                            keywords_count=keywords_count,
-                           reduction_count=reduction_count,
                            settings=settings)
 
 

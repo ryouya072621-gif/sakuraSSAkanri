@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from flask import Blueprint, jsonify, request, current_app
 from sqlalchemy import func, distinct
 from app import db
-from app.models import WorkRecord, CategoryMapping, DisplayCategory, AppSetting, TaskReductionTarget, ReductionGoal, WorkProjectMapping, STANDARD_TASK_TYPES
+from app.models import WorkRecord, CategoryMapping, DisplayCategory, AppSetting, WorkProjectMapping, STANDARD_TASK_TYPES
 from app.services.task_grouper import group_ranking_by_task_group, get_unit_type, get_unit_suffix, get_sub_category
 
 bp = Blueprint('api', __name__, url_prefix='/api')
@@ -67,11 +67,10 @@ def get_summary():
     # タスク種類数
     task_types = len(set(r.work_name for r in stats if r.work_name))
 
-    # 時間制と件数制を分離 + 削減対象を同時計算
+    # 時間制と件数制を分離
     total_hours = 0
     total_count = 0
     total_cost = 0
-    reduction_hours = 0
 
     for cat2, work_name, quantity, cost in stats:
         qty = quantity or 0
@@ -84,23 +83,12 @@ def get_summary():
 
         total_cost += cost or 0
 
-        # 削減対象判定（時間制のみ）
-        if unit_type != 'count':
-            display_cat = CategoryMapping.auto_categorize(cat2, work_name)
-            is_category_reduction = CategoryMapping.is_target_for_reduction(display_cat)
-            is_task_reduction = TaskReductionTarget.is_work_reduction_target(work_name)
-            if is_category_reduction or is_task_reduction:
-                reduction_hours += qty
-
-    reduction_ratio = (reduction_hours / total_hours * 100) if total_hours > 0 else 0
-
     return jsonify({
         'total_hours': round(total_hours, 1),
         'total_count': round(total_count, 1),
         'total_cost': total_cost,
         'estimated_cost': round(total_hours * hourly_rate),
-        'task_types': task_types,
-        'reduction_ratio': round(reduction_ratio, 1)
+        'task_types': task_types
     })
 
 
@@ -263,10 +251,6 @@ def get_ranking():
     result = []
     for ws in work_stats:
         display_cat = CategoryMapping.auto_categorize(ws.category2, ws.work_name)
-        # カテゴリベースまたは業務名ベースで削減対象か判定
-        is_category_reduction = CategoryMapping.is_target_for_reduction(display_cat)
-        is_task_reduction = TaskReductionTarget.is_work_reduction_target(ws.work_name)
-        is_reduction = is_category_reduction or is_task_reduction
         ratio = (ws.total_hours / total_hours * 100) if total_hours > 0 else 0
 
         # 単位タイプとサブカテゴリを取得
@@ -282,11 +266,9 @@ def get_ranking():
             'ratio': round(ratio, 1),
             'cost': ws.total_cost,
             'estimated_cost': ws.total_hours * hourly_rate,
-            'is_reduction_target': is_reduction,
-            'is_task_reduction_target': is_task_reduction,  # 業務名固有の削減対象フラグ
-            'unit_type': unit_type,  # 'hours' or 'count'
-            'unit_suffix': unit_suffix,  # 'h' or '件'
-            'sub_category': sub_category  # サブカテゴリ（コア業務の細分化）
+            'unit_type': unit_type,
+            'unit_suffix': unit_suffix,
+            'sub_category': sub_category
         })
 
     # グループ化が要求された場合
@@ -318,7 +300,6 @@ def get_category_colors():
     return jsonify({
         'categories': [c.name for c in db_categories],
         'colors': {c.name: c.color for c in db_categories},
-        'reduction_targets': [c.name for c in db_categories if c.is_reduction_target],
         'badge_styles': {
             c.name: {
                 'bg': c.badge_bg_color,
@@ -336,114 +317,6 @@ def get_default_settings():
         'ranking_limit': AppSetting.get_value('ranking_limit', 10),
         'default_category': AppSetting.get_value('default_category', 'コア業務')
     })
-
-
-@bp.route('/task/toggle-reduction-target', methods=['POST'])
-def toggle_task_reduction_target():
-    """業務名の削減対象フラグをトグル"""
-    data = request.get_json()
-    work_name = data.get('work_name')
-
-    if not work_name:
-        return jsonify({'error': '業務名が必要です'}), 400
-
-    is_target = TaskReductionTarget.toggle_target(work_name)
-
-    return jsonify({
-        'work_name': work_name,
-        'is_reduction_target': is_target
-    })
-
-
-@bp.route('/task/bulk-toggle-reduction-target', methods=['POST'])
-def bulk_toggle_task_reduction_target():
-    """複数の業務名を一括で削減対象に設定/解除"""
-    data = request.get_json()
-    work_names = data.get('work_names', [])
-    set_as_target = data.get('set_as_target', True)  # True=削減対象に設定, False=解除
-
-    if not work_names:
-        return jsonify({'error': '業務名リストが必要です'}), 400
-
-    TaskReductionTarget.bulk_set_targets(work_names, is_target=set_as_target)
-
-    return jsonify({
-        'updated_count': len(work_names),
-        'work_names': work_names,
-        'is_reduction_target': set_as_target
-    })
-
-
-@bp.route('/task/reduction-targets')
-def get_task_reduction_targets():
-    """削減対象として登録されている業務名一覧を取得"""
-    targets = TaskReductionTarget.query.filter_by(is_reduction_target=True).all()
-    return jsonify([{
-        'work_name': t.work_name,
-        'created_at': t.created_at.strftime('%Y-%m-%d %H:%M:%S')
-    } for t in targets])
-
-
-@bp.route('/reduction-goals')
-def get_reduction_goals():
-    """削減目標一覧を取得"""
-    goals = ReductionGoal.query.filter_by(is_active=True).all()
-    return jsonify([g.to_dict() for g in goals])
-
-
-@bp.route('/reduction-goals', methods=['POST'])
-def save_reduction_goal():
-    """削減目標を保存"""
-    data = request.get_json()
-
-    goal_type = data.get('goal_type', 'global')
-    target_percent = data.get('target_percent', 20.0)
-    baseline_period_start = data.get('baseline_period_start')
-    baseline_period_end = data.get('baseline_period_end')
-    category_id = data.get('category_id')
-    staff_name = data.get('staff_name')
-
-    # 既存の同タイプの目標を探す
-    query = ReductionGoal.query.filter_by(goal_type=goal_type, is_active=True)
-    if goal_type == 'category' and category_id:
-        query = query.filter_by(category_id=category_id)
-    elif goal_type == 'staff' and staff_name:
-        query = query.filter_by(staff_name=staff_name)
-
-    goal = query.first()
-
-    if goal:
-        goal.target_percent = target_percent
-        if baseline_period_start:
-            goal.baseline_period_start = datetime.strptime(baseline_period_start, '%Y-%m-%d').date()
-        if baseline_period_end:
-            goal.baseline_period_end = datetime.strptime(baseline_period_end, '%Y-%m-%d').date()
-    else:
-        goal = ReductionGoal(
-            goal_type=goal_type,
-            target_percent=target_percent,
-            category_id=category_id,
-            staff_name=staff_name,
-            is_active=True
-        )
-        if baseline_period_start:
-            goal.baseline_period_start = datetime.strptime(baseline_period_start, '%Y-%m-%d').date()
-        if baseline_period_end:
-            goal.baseline_period_end = datetime.strptime(baseline_period_end, '%Y-%m-%d').date()
-        db.session.add(goal)
-
-    db.session.commit()
-
-    return jsonify(goal.to_dict())
-
-
-@bp.route('/reduction-goals/<int:goal_id>', methods=['DELETE'])
-def delete_reduction_goal(goal_id):
-    """削減目標を削除"""
-    goal = ReductionGoal.query.get_or_404(goal_id)
-    goal.is_active = False
-    db.session.commit()
-    return jsonify({'success': True})
 
 
 # ============================================
@@ -480,72 +353,35 @@ def get_weekly_trend():
     # 週ごとに集計（月曜開始）
     weekly_data = {}
     for work_date, cat2, work_name, hours in daily_stats:
-        # 週の開始日（月曜日）を計算
         week_start = work_date - timedelta(days=work_date.weekday())
         week_key = week_start.strftime('%Y-%m-%d')
 
         if week_key not in weekly_data:
-            weekly_data[week_key] = {'reduction': 0, 'core': 0, 'other': 0, 'total': 0}
-
-        # カテゴリを判定
-        display_cat = CategoryMapping.auto_categorize(cat2, work_name)
-        is_category_reduction = CategoryMapping.is_target_for_reduction(display_cat)
-        is_task_reduction = TaskReductionTarget.is_work_reduction_target(work_name)
-
-        if is_category_reduction or is_task_reduction:
-            weekly_data[week_key]['reduction'] += hours
-        elif display_cat == 'コア業務':
-            weekly_data[week_key]['core'] += hours
-        else:
-            weekly_data[week_key]['other'] += hours
-
-        weekly_data[week_key]['total'] += hours
+            weekly_data[week_key] = 0
+        weekly_data[week_key] += hours
 
     # ソートして結果を構築
     sorted_weeks = sorted(weekly_data.keys())
     labels = []
-    reduction_data = []
-    core_data = []
+    total_data = []
 
     for week_key in sorted_weeks:
         week_date = datetime.strptime(week_key, '%Y-%m-%d')
         labels.append(f"W{week_date.isocalendar()[1]} ({week_date.strftime('%m/%d')})")
-        reduction_data.append(round(weekly_data[week_key]['reduction'], 1))
-        core_data.append(round(weekly_data[week_key]['core'], 1))
-
-    # 目標データを取得
-    goal = ReductionGoal.query.filter_by(goal_type='global', is_active=True).first()
-    goal_data = None
-    if goal and reduction_data:
-        baseline = reduction_data[0] if reduction_data else 0
-        target = baseline * (1 - goal.target_percent / 100)
-        goal_data = {
-            'baseline_hours': baseline,
-            'target_hours': round(target, 1),
-            'target_percent': goal.target_percent
-        }
+        total_data.append(round(weekly_data[week_key], 1))
 
     return jsonify({
         'labels': labels,
         'datasets': [
             {
-                'label': '削減対象',
-                'data': reduction_data,
-                'borderColor': '#dc2626',
-                'backgroundColor': 'rgba(220, 38, 38, 0.1)',
-                'tension': 0.3,
-                'fill': True
-            },
-            {
-                'label': 'コア業務',
-                'data': core_data,
-                'borderColor': '#3b82f6',
-                'backgroundColor': 'rgba(59, 130, 246, 0.1)',
+                'label': '合計時間',
+                'data': total_data,
+                'borderColor': '#6366f1',
+                'backgroundColor': 'rgba(99, 102, 241, 0.1)',
                 'tension': 0.3,
                 'fill': True
             }
-        ],
-        'goal': goal_data
+        ]
     })
 
 
@@ -617,143 +453,7 @@ def get_alerts():
                     'change_percent': round(change_percent, 1)
                 })
 
-    # 2. 削減対象カテゴリの閾値チェック
-    reduction_categories = DisplayCategory.query.filter_by(is_reduction_target=True).all()
-    reduction_names = {c.name for c in reduction_categories}
-
-    reduction_total = sum(hours for cat, hours in this_week_hours.items() if cat in reduction_names)
-    task_reduction_total = 0
-
-    # タスクベースの削減対象も計算
-    for cat2, work_name, hours in db.session.query(
-        WorkRecord.category2, WorkRecord.work_name, func.sum(WorkRecord.quantity)
-    ).filter(
-        WorkRecord.work_date >= this_week_start,
-        WorkRecord.work_date <= today
-    ).group_by(WorkRecord.category2, WorkRecord.work_name).all():
-        if TaskReductionTarget.is_work_reduction_target(work_name):
-            display_cat = CategoryMapping.auto_categorize(cat2, work_name)
-            if display_cat not in reduction_names:
-                task_reduction_total += hours
-
-    total_reduction = reduction_total + task_reduction_total
-
-    if this_week_total > 0:
-        reduction_ratio = (total_reduction / this_week_total) * 100
-        reduction_warning_threshold = current_app.config.get('REDUCTION_RATIO_WARNING', 15)
-        if reduction_ratio > reduction_warning_threshold:
-            alerts.append({
-                'level': 'warning',
-                'type': 'threshold_exceeded',
-                'message': f'削減対象業務が全体の{round(reduction_ratio, 1)}%を超えています',
-                'category': '削減対象全体',
-                'current_ratio': round(reduction_ratio, 1),
-                'threshold': reduction_warning_threshold
-            })
-
-    # 3. 削減目標進捗チェック
-    goal = ReductionGoal.query.filter_by(goal_type='global', is_active=True).first()
-    if goal:
-        # 基準期間のデータを取得
-        baseline_query = db.session.query(
-            func.sum(WorkRecord.quantity)
-        )
-        if goal.baseline_period_start and goal.baseline_period_end:
-            baseline_query = baseline_query.filter(
-                WorkRecord.work_date >= goal.baseline_period_start,
-                WorkRecord.work_date <= goal.baseline_period_end
-            )
-        if category1:
-            baseline_query = baseline_query.filter(WorkRecord.category1 == category1)
-        if staff:
-            baseline_query = baseline_query.filter(WorkRecord.staff_name == staff)
-
-        baseline_total = baseline_query.scalar() or 0
-
-        if baseline_total > 0:
-            target_reduction = goal.target_percent
-            current_reduction = ((baseline_total - this_week_total) / baseline_total) * 100 if baseline_total > 0 else 0
-            progress = (current_reduction / target_reduction) * 100 if target_reduction > 0 else 0
-
-            if progress >= 80:
-                alerts.append({
-                    'level': 'success',
-                    'type': 'goal_progress',
-                    'message': '削減対象業務は目標通り推移しています',
-                    'progress_percent': round(progress, 1)
-                })
-            elif progress < 50:
-                alerts.append({
-                    'level': 'warning',
-                    'type': 'goal_progress',
-                    'message': f'削減目標の達成率が{round(progress, 1)}%です',
-                    'progress_percent': round(progress, 1)
-                })
-
     return jsonify({'alerts': alerts})
-
-
-@bp.route('/analytics/reduction-progress')
-def get_reduction_progress():
-    """削減目標進捗を取得"""
-    category1 = request.args.get('category1')
-    staff = request.args.get('staff')
-    start_date = request.args.get('start')
-    end_date = request.args.get('end')
-
-    # 現在の削減対象時間を計算
-    query = db.session.query(
-        WorkRecord.category2,
-        WorkRecord.work_name,
-        func.sum(WorkRecord.quantity).label('hours')
-    )
-
-    if category1:
-        query = query.filter(WorkRecord.category1 == category1)
-    if staff:
-        query = query.filter(WorkRecord.staff_name == staff)
-    if start_date:
-        query = query.filter(WorkRecord.work_date >= datetime.strptime(start_date, '%Y-%m-%d').date())
-    if end_date:
-        query = query.filter(WorkRecord.work_date <= datetime.strptime(end_date, '%Y-%m-%d').date())
-
-    stats = query.group_by(WorkRecord.category2, WorkRecord.work_name).all()
-
-    current_reduction = 0
-    total_hours = 0
-    for cat2, work_name, hours in stats:
-        display_cat = CategoryMapping.auto_categorize(cat2, work_name)
-        is_category_reduction = CategoryMapping.is_target_for_reduction(display_cat)
-        is_task_reduction = TaskReductionTarget.is_work_reduction_target(work_name)
-        if is_category_reduction or is_task_reduction:
-            current_reduction += hours
-        total_hours += hours
-
-    # 目標を取得
-    goal = ReductionGoal.query.filter_by(goal_type='global', is_active=True).first()
-
-    result = {
-        'current_hours': round(current_reduction, 1),
-        'total_hours': round(total_hours, 1),
-        'current_ratio': round((current_reduction / total_hours * 100) if total_hours > 0 else 0, 1)
-    }
-
-    if goal:
-        baseline = goal.baseline_hours or current_reduction
-        target = baseline * (1 - goal.target_percent / 100)
-        reduction_achieved = ((baseline - current_reduction) / baseline * 100) if baseline > 0 else 0
-        progress = (reduction_achieved / goal.target_percent * 100) if goal.target_percent > 0 else 0
-
-        result.update({
-            'baseline_hours': round(baseline, 1),
-            'target_hours': round(target, 1),
-            'target_reduction': goal.target_percent,
-            'reduction_achieved': round(reduction_achieved, 1),
-            'progress_percent': round(min(progress, 100), 1),
-            'status': 'on_track' if progress >= 80 else 'behind' if progress < 50 else 'moderate'
-        })
-
-    return jsonify(result)
 
 
 # ============================================
@@ -794,21 +494,16 @@ def get_staff_comparison():
             staff_data[staff_name] = {
                 'total_hours': 0,
                 'core_hours': 0,
-                'reduction_hours': 0,
                 'other_hours': 0,
                 'categories': {}
             }
 
         display_cat = CategoryMapping.auto_categorize(cat2, work_name)
-        is_category_reduction = CategoryMapping.is_target_for_reduction(display_cat)
-        is_task_reduction = TaskReductionTarget.is_work_reduction_target(work_name)
 
         staff_data[staff_name]['total_hours'] += hours
         staff_data[staff_name]['categories'][display_cat] = staff_data[staff_name]['categories'].get(display_cat, 0) + hours
 
-        if is_category_reduction or is_task_reduction:
-            staff_data[staff_name]['reduction_hours'] += hours
-        elif display_cat == 'コア業務':
+        if display_cat == 'コア業務':
             staff_data[staff_name]['core_hours'] += hours
         else:
             staff_data[staff_name]['other_hours'] += hours
@@ -821,18 +516,15 @@ def get_staff_comparison():
             continue
 
         core_ratio = (data['core_hours'] / total * 100) if total > 0 else 0
-        reduction_ratio = (data['reduction_hours'] / total * 100) if total > 0 else 0
 
-        # 効率スコア（コア業務率が高く、削減対象率が低いほど高スコア）
-        efficiency_score = core_ratio - (reduction_ratio * 0.5)
+        # 効率スコア（コア業務率）
+        efficiency_score = core_ratio
 
         result.append({
             'staff_name': staff_name,
             'total_hours': round(total, 1),
             'core_hours': round(data['core_hours'], 1),
             'core_ratio': round(core_ratio, 1),
-            'reduction_hours': round(data['reduction_hours'], 1),
-            'reduction_ratio': round(reduction_ratio, 1),
             'other_hours': round(data['other_hours'], 1),
             'efficiency_score': round(efficiency_score, 1),
             'categories': {cat: round(hours, 1) for cat, hours in data['categories'].items()}

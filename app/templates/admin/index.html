@@ -30,7 +30,6 @@
                     </div>
                     <ul class="list-unstyled mb-3">
                         <li><i class="bi bi-check2 text-success me-2"></i>{{ categories_count }}件のカテゴリ</li>
-                        <li><i class="bi bi-exclamation-triangle text-danger me-2"></i>削減対象: {{ reduction_count }}件</li>
                     </ul>
                     <a href="{{ url_for('admin.categories') }}" class="btn btn-outline-primary w-100">
                         <i class="bi bi-arrow-right me-1"></i>設定を開く
@@ -172,10 +171,6 @@
                 <li><strong>マッチ方式</strong>: 「含む（部分一致）」「完全一致」「前方一致」から選択可能</li>
                 <li><strong>デフォルト分類</strong>: どのキーワードにもマッチしない場合、「{{ settings.default_category }}」に分類されます</li>
             </ol>
-            <div class="alert alert-warning mb-0">
-                <i class="bi bi-lightbulb me-2"></i>
-                <strong>ヒント:</strong> 削減対象に設定されたカテゴリは、KPIカードの「削減対象(その他等)」の計算に使用されます。
-            </div>
         </div>
     </div>
 </div>
