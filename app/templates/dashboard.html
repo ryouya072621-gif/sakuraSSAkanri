@@ -302,17 +302,25 @@
                     <table class="table table-hover mb-0">
                         <thead class="table-light">
                             <tr>
-                                <th>部門</th>
-                                <th class="text-end">前月 時間</th>
-                                <th class="text-end">今月 時間</th>
+                                <th rowspan="2" class="align-middle">部門</th>
+                                <th colspan="3" class="text-center border-start">業務時間</th>
+                                <th colspan="3" class="text-center border-start">売上</th>
+                                <th colspan="3" class="text-center border-start">時間あたり売上</th>
+                            </tr>
+                            <tr>
+                                <th class="text-end border-start">前月</th>
+                                <th class="text-end">今月</th>
                                 <th class="text-end">差分</th>
-                                <th class="text-end">前月 コスト</th>
-                                <th class="text-end">今月 コスト</th>
+                                <th class="text-end border-start">前月</th>
+                                <th class="text-end">今月</th>
+                                <th class="text-end">差分</th>
+                                <th class="text-end border-start">前月</th>
+                                <th class="text-end">今月</th>
                                 <th class="text-end">差分</th>
                             </tr>
                         </thead>
                         <tbody id="overviewBody">
-                            <tr><td colspan="7" class="text-center text-muted py-4">
+                            <tr><td colspan="10" class="text-center text-muted py-4">
                                 サイドバーの「部門比較を更新」で読み込み
                             </td></tr>
                         </tbody>

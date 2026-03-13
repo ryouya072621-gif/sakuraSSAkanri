@@ -87,6 +87,36 @@ function formatCostDiff(val) {
     return `<span class="${cls}">${arrow} ${sign}¥${Math.abs(Math.round(val)).toLocaleString()}</span>`;
 }
 
+function formatRevPerHour(val) {
+    if (val === null || val === undefined) return '<span class="text-muted">-</span>';
+    return '¥' + Math.round(val).toLocaleString() + '/h';
+}
+
+// 売上差分: 増加=緑(良)、減少=赤(悪) → 時間差分と逆方向
+function getRevDiffClass(val) {
+    if (val > 0) return 'diff-negative';  // 緑（増収は良い）
+    if (val < 0) return 'diff-positive';  // 赤（減収は悪い）
+    return 'diff-zero';
+}
+
+function formatRevDiff(val) {
+    if (val === null || val === undefined) return '<span class="text-muted">-</span>';
+    if (val === 0) return `<span class="diff-zero">→ ¥0</span>`;
+    const cls = getRevDiffClass(val);
+    const arrow = val > 0 ? '▲' : '▼';
+    const sign = val > 0 ? '+' : '';
+    return `<span class="${cls}">${arrow} ${sign}¥${Math.abs(Math.round(val)).toLocaleString()}</span>`;
+}
+
+function formatRevPerHourDiff(val) {
+    if (val === null || val === undefined) return '<span class="text-muted">-</span>';
+    if (val === 0) return `<span class="diff-zero">→ ¥0/h</span>`;
+    const cls = getRevDiffClass(val);
+    const arrow = val > 0 ? '▲' : '▼';
+    const sign = val > 0 ? '+' : '';
+    return `<span class="${cls}">${arrow} ${sign}¥${Math.abs(Math.round(val)).toLocaleString()}/h</span>`;
+}
+
 // ============================================
 // XSSエスケープ（dashboard.js の escapeHtml と衝突回避）
 // ============================================
@@ -116,7 +146,7 @@ function loadOverview() {
     if (compVal) qs += `&compare_month=${compVal}`;
 
     document.getElementById('overviewBody').innerHTML =
-        '<tr><td colspan="7" class="text-center text-muted py-4">' +
+        '<tr><td colspan="10" class="text-center text-muted py-4">' +
         '<span class="spinner-border spinner-border-sm me-2"></span>読み込み中...</td></tr>';
 
     fetch(`/api/analytics/department-month-comparison?${qs}`)
@@ -130,7 +160,7 @@ function loadOverview() {
         .catch(err => {
             console.error('Failed to load overview:', err);
             document.getElementById('overviewBody').innerHTML =
-                '<tr><td colspan="7" class="text-center text-danger py-4">データの読み込みに失敗しました</td></tr>';
+                '<tr><td colspan="10" class="text-center text-danger py-4">データの読み込みに失敗しました</td></tr>';
         });
 }
 
@@ -156,22 +186,33 @@ function renderOverviewTable(departments, baseMonth, compMonth) {
     const body = document.getElementById('overviewBody');
 
     if (!departments || departments.length === 0) {
-        body.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">データなし</td></tr>';
+        body.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-4">データなし</td></tr>';
         return;
     }
 
-    body.innerHTML = departments.map(d => `
-        <tr class="dept-row ${currentDept === d.department ? 'active' : ''}"
-            onclick="selectDepartment('${deptEscapeAttr(d.department)}', '${baseMonth}', '${compMonth}')">
+    body.innerHTML = departments.map(d => {
+        const isTotal = d.is_total;
+        const rowCls = isTotal
+            ? 'dept-row table-primary fw-bold'
+            : `dept-row ${currentDept === d.department ? 'active' : ''}`;
+        const clickAttr = isTotal
+            ? `onclick="selectDepartment('全体', '${baseMonth}', '${compMonth}')"`
+            : `onclick="selectDepartment('${deptEscapeAttr(d.department)}', '${baseMonth}', '${compMonth}')"`;
+        return `
+        <tr class="${rowCls}" ${clickAttr}>
             <td class="fw-bold">${deptEscapeHtml(d.department)}</td>
             <td class="text-end">${d.base_hours.toFixed(1)}h</td>
             <td class="text-end">${d.compare_hours.toFixed(1)}h</td>
             <td class="text-end">${formatDiff(d.diff_hours, 'h')}</td>
             <td class="text-end">${formatCost(d.base_cost)}</td>
             <td class="text-end">${formatCost(d.compare_cost)}</td>
-            <td class="text-end">${formatCostDiff(d.diff_cost)}</td>
+            <td class="text-end">${formatRevDiff(d.diff_cost)}</td>
+            <td class="text-end">${formatRevPerHour(d.base_rev_per_hour)}</td>
+            <td class="text-end">${formatRevPerHour(d.compare_rev_per_hour)}</td>
+            <td class="text-end">${formatRevPerHourDiff(d.diff_rev_per_hour)}</td>
         </tr>
-    `).join('');
+        `;
+    }).join('');
 }
 
 // ============================================
@@ -246,10 +287,11 @@ function renderDetailKPIs(summary) {
     const container = document.getElementById('detailKPIs');
     const diffHoursCls = getDiffClass(summary.diff_hours);
     const diffCost = summary.compare_cost - summary.base_cost;
-    const diffCostCls = getDiffClass(diffCost);
+    const diffRevCls = getRevDiffClass(diffCost);
+    const diffRphCls = summary.diff_rev_per_hour != null ? getRevDiffClass(summary.diff_rev_per_hour) : '';
 
     container.innerHTML = `
-        <div class="col-6 col-md-3">
+        <div class="col-4 col-md-2">
             <div class="card kpi-card h-100">
                 <div class="card-body py-3">
                     <div class="label">前月 時間</div>
@@ -257,7 +299,7 @@ function renderDetailKPIs(summary) {
                 </div>
             </div>
         </div>
-        <div class="col-6 col-md-3">
+        <div class="col-4 col-md-2">
             <div class="card kpi-card h-100">
                 <div class="card-body py-3">
                     <div class="label">今月 時間</div>
@@ -265,7 +307,7 @@ function renderDetailKPIs(summary) {
                 </div>
             </div>
         </div>
-        <div class="col-6 col-md-3">
+        <div class="col-4 col-md-2">
             <div class="card kpi-card h-100">
                 <div class="card-body py-3">
                     <div class="label">時間 差分</div>
@@ -274,11 +316,51 @@ function renderDetailKPIs(summary) {
                 </div>
             </div>
         </div>
-        <div class="col-6 col-md-3">
+        <div class="col-4 col-md-2">
             <div class="card kpi-card h-100">
                 <div class="card-body py-3">
-                    <div class="label">コスト 差分</div>
-                    <div class="value ${diffCostCls}">${diffCost > 0 ? '+' : ''}¥${Math.abs(diffCost).toLocaleString()}</div>
+                    <div class="label">前月 売上</div>
+                    <div class="value">${formatCost(summary.base_cost)}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-4 col-md-2">
+            <div class="card kpi-card h-100">
+                <div class="card-body py-3">
+                    <div class="label">今月 売上</div>
+                    <div class="value">${formatCost(summary.compare_cost)}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-4 col-md-2">
+            <div class="card kpi-card h-100">
+                <div class="card-body py-3">
+                    <div class="label">売上 差分</div>
+                    <div class="value ${diffRevCls}">${diffCost > 0 ? '+' : ''}¥${Math.abs(diffCost).toLocaleString()}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-4 mt-2">
+            <div class="card kpi-card h-100">
+                <div class="card-body py-3">
+                    <div class="label">前月 時間あたり売上</div>
+                    <div class="value">${formatRevPerHour(summary.base_rev_per_hour)}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-4 mt-2">
+            <div class="card kpi-card h-100">
+                <div class="card-body py-3">
+                    <div class="label">今月 時間あたり売上</div>
+                    <div class="value">${formatRevPerHour(summary.compare_rev_per_hour)}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-md-4 mt-2">
+            <div class="card kpi-card h-100">
+                <div class="card-body py-3">
+                    <div class="label">時間あたり売上 差分</div>
+                    <div class="value ${diffRphCls}">${summary.diff_rev_per_hour != null ? (summary.diff_rev_per_hour > 0 ? '+' : '') + '¥' + Math.abs(summary.diff_rev_per_hour).toLocaleString() + '/h' : '-'}</div>
                 </div>
             </div>
         </div>
@@ -526,48 +608,86 @@ function renderTrendChart(data) {
     }
 
     const labels = data.months.map(m => formatMonth(m));
+    const hasRevenue = data.rev_per_hour && data.rev_per_hour.some(v => v !== null);
+
+    const datasets = [{
+        label: '業務時間 (h)',
+        data: data.hours,
+        borderColor: '#6366f1',
+        backgroundColor: 'rgba(99, 102, 241, 0.1)',
+        borderWidth: 2,
+        pointBackgroundColor: '#6366f1',
+        pointBorderColor: '#fff',
+        pointBorderWidth: 2,
+        pointRadius: 5,
+        pointHoverRadius: 7,
+        fill: true,
+        tension: 0.3,
+        yAxisID: 'y',
+    }];
+
+    if (hasRevenue) {
+        datasets.push({
+            label: '時間あたり売上 (¥/h)',
+            data: data.rev_per_hour,
+            borderColor: '#f59e0b',
+            backgroundColor: 'rgba(245, 158, 11, 0.1)',
+            borderWidth: 2,
+            pointBackgroundColor: '#f59e0b',
+            pointBorderColor: '#fff',
+            pointBorderWidth: 2,
+            pointRadius: 5,
+            pointHoverRadius: 7,
+            fill: false,
+            tension: 0.3,
+            yAxisID: 'y1',
+            borderDash: [5, 3],
+        });
+    }
+
+    const scales = {
+        x: { grid: { display: false } },
+        y: {
+            beginAtZero: true,
+            title: { display: true, text: '時間 (h)' },
+            position: 'left',
+        },
+    };
+
+    if (hasRevenue) {
+        scales.y1 = {
+            beginAtZero: true,
+            title: { display: true, text: '¥/h' },
+            position: 'right',
+            grid: { drawOnChartArea: false },
+            ticks: {
+                callback: function(val) {
+                    return '¥' + val.toLocaleString();
+                }
+            }
+        };
+    }
 
     deptTrendChart = new Chart(ctx, {
         type: 'line',
-        data: {
-            labels: labels,
-            datasets: [{
-                label: '業務時間 (h)',
-                data: data.hours,
-                borderColor: '#6366f1',
-                backgroundColor: 'rgba(99, 102, 241, 0.1)',
-                borderWidth: 2,
-                pointBackgroundColor: '#6366f1',
-                pointBorderColor: '#fff',
-                pointBorderWidth: 2,
-                pointRadius: 5,
-                pointHoverRadius: 7,
-                fill: true,
-                tension: 0.3,
-            }]
-        },
+        data: { labels, datasets },
         options: {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-                legend: { display: false },
+                legend: { display: hasRevenue, position: 'top' },
                 tooltip: {
                     callbacks: {
                         label: function(ctx) {
+                            if (ctx.dataset.yAxisID === 'y1') {
+                                return ctx.raw != null ? `¥${ctx.raw.toLocaleString()}/h` : '-';
+                            }
                             return `${ctx.raw.toFixed(1)}h`;
                         }
                     }
                 }
             },
-            scales: {
-                x: {
-                    grid: { display: false }
-                },
-                y: {
-                    beginAtZero: true,
-                    title: { display: true, text: '時間 (h)' }
-                }
-            }
+            scales: scales,
         }
     });
 }

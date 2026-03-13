@@ -1253,6 +1253,11 @@ def get_department_month_detail_data(department, base_month, compare_month):
     diff_hours = comp_hours - base_hours
     diff_pct = round(diff_hours / base_hours * 100, 1) if base_hours > 0 else (0 if diff_hours == 0 else None)
 
+    # 効率指標
+    b_rph = round(base_cost / base_hours, 0) if base_hours > 0 else None
+    c_rph = round(comp_cost / comp_hours, 0) if comp_hours > 0 else None
+    diff_rph = round(c_rph - b_rph, 0) if (b_rph is not None and c_rph is not None) else None
+
     summary = {
         'base_hours': round(base_hours, 1),
         'compare_hours': round(comp_hours, 1),
@@ -1260,6 +1265,9 @@ def get_department_month_detail_data(department, base_month, compare_month):
         'diff_pct': diff_pct,
         'base_cost': int(base_cost),
         'compare_cost': int(comp_cost),
+        'base_rev_per_hour': int(b_rph) if b_rph is not None else None,
+        'compare_rev_per_hour': int(c_rph) if c_rph is not None else None,
+        'diff_rev_per_hour': int(diff_rph) if diff_rph is not None else None,
     }
 
     # --- カテゴリ別比較（時間制のみ） ---
@@ -1460,6 +1468,11 @@ def get_department_month_comparison():
         diff_h = ch - bh
         diff_c = cc - bc
 
+        # 効率指標
+        b_rph = round(bc / bh, 0) if bh > 0 else None
+        c_rph = round(cc / ch, 0) if ch > 0 else None
+        diff_rph = round(c_rph - b_rph, 0) if (b_rph is not None and c_rph is not None) else None
+
         dept_data.append({
             'department': dept,
             'base_hours': round(bh, 1),
@@ -1474,7 +1487,43 @@ def get_department_month_comparison():
             'diff_cost_pct': round(diff_c / bc * 100, 1) if bc > 0 else (0 if diff_c == 0 else None),
             'staff_count_base': base_cost_row[1] or 0,
             'staff_count_compare': comp_cost_row[1] or 0,
+            'base_rev_per_hour': int(b_rph) if b_rph is not None else None,
+            'compare_rev_per_hour': int(c_rph) if c_rph is not None else None,
+            'diff_rev_per_hour': int(diff_rph) if diff_rph is not None else None,
         })
+
+    # 全体（合計）行を先頭に挿入
+    if dept_data:
+        total_bh = sum(d['base_hours'] for d in dept_data)
+        total_ch = sum(d['compare_hours'] for d in dept_data)
+        total_bc = sum(d['base_cost'] for d in dept_data)
+        total_cc = sum(d['compare_cost'] for d in dept_data)
+        total_diff_h = total_ch - total_bh
+        total_diff_c = total_cc - total_bc
+        total_b_rph = round(total_bc / total_bh, 0) if total_bh > 0 else None
+        total_c_rph = round(total_cc / total_ch, 0) if total_ch > 0 else None
+        total_diff_rph = round(total_c_rph - total_b_rph, 0) if (total_b_rph is not None and total_c_rph is not None) else None
+
+        total_row = {
+            'department': '全体',
+            'base_hours': round(total_bh, 1),
+            'compare_hours': round(total_ch, 1),
+            'diff_hours': round(total_diff_h, 1),
+            'diff_hours_pct': round(total_diff_h / total_bh * 100, 1) if total_bh > 0 else 0,
+            'base_count': 0,
+            'compare_count': 0,
+            'base_cost': int(total_bc),
+            'compare_cost': int(total_cc),
+            'diff_cost': int(total_diff_c),
+            'diff_cost_pct': round(total_diff_c / total_bc * 100, 1) if total_bc > 0 else 0,
+            'staff_count_base': 0,
+            'staff_count_compare': 0,
+            'base_rev_per_hour': int(total_b_rph) if total_b_rph is not None else None,
+            'compare_rev_per_hour': int(total_c_rph) if total_c_rph is not None else None,
+            'diff_rev_per_hour': int(total_diff_rph) if total_diff_rph is not None else None,
+            'is_total': True,
+        }
+        dept_data.insert(0, total_row)
 
     return jsonify({
         'base_month': base_month,
@@ -1517,12 +1566,15 @@ def get_department_month_detail():
 
 @bp.route('/analytics/department-monthly-trend')
 def get_department_monthly_trend():
-    """部門の月次推移データ（時間制のみ）"""
+    """部門の月次推移データ（時間・売上・効率）"""
     department = request.args.get('department')
     if not department:
         return jsonify({'error': 'department parameter is required'}), 400
 
     month_expr = _month_format_expr()
+
+    # 全体モード: department='全体' の場合は全部門合計
+    dept_filter = [] if department == '全体' else [WorkRecord.category1 == department]
 
     # 月ごと・work_name別に集計（unit_type判定のため）
     rows = db.session.query(
@@ -1530,7 +1582,7 @@ def get_department_monthly_trend():
         WorkRecord.work_name,
         func.sum(WorkRecord.quantity).label('qty'),
     ).filter(
-        WorkRecord.category1 == department,
+        *dept_filter,
     ).group_by(month_expr, WorkRecord.work_name).all()
 
     # 月ごとに時間制のみ合計
@@ -1542,11 +1594,42 @@ def get_department_monthly_trend():
             continue
         month_hours[ym] = month_hours.get(ym, 0) + float(qty or 0)
 
-    # 時系列ソート
-    sorted_months = sorted(month_hours.keys())
+    # 月ごとの売上（total_amount合計）
+    rev_rows = db.session.query(
+        month_expr.label('ym'),
+        func.coalesce(func.sum(WorkRecord.total_amount), 0).label('rev'),
+    ).filter(
+        *dept_filter,
+    ).group_by(month_expr).all()
+
+    month_revenue = {r.ym: float(r.rev) for r in rev_rows if r.ym}
+
+    # 時系列ソート（時間 or 売上のある月を全て含む）
+    all_months = sorted(set(list(month_hours.keys()) + list(month_revenue.keys())))
+
+    # 時間あたり売上 + 累積売上
+    hours_list = []
+    revenue_list = []
+    rev_per_hour_list = []
+    cumulative_rev = 0
+    cumulative_list = []
+
+    for m in all_months:
+        h = round(month_hours.get(m, 0), 1)
+        r = int(month_revenue.get(m, 0))
+        rph = int(round(r / h, 0)) if h > 0 else None
+        cumulative_rev += r
+
+        hours_list.append(h)
+        revenue_list.append(r)
+        rev_per_hour_list.append(rph)
+        cumulative_list.append(cumulative_rev)
 
     return jsonify({
         'department': department,
-        'months': sorted_months,
-        'hours': [round(month_hours[m], 1) for m in sorted_months],
+        'months': all_months,
+        'hours': hours_list,
+        'revenue': revenue_list,
+        'rev_per_hour': rev_per_hour_list,
+        'cumulative_revenue': cumulative_list,
     })
