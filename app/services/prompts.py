@@ -446,9 +446,10 @@ def build_department_month_report_prompt(
     work_lines = []
     for w in work_changes[:20]:
         pct_str = f"{w['diff_pct']:+.1f}%" if w['diff_pct'] is not None else '新規'
+        suffix = w.get('unit_suffix', 'h')
         work_lines.append(
-            f"  - {w['work_name']}: {w['base_hours']}h → {w['compare_hours']}h "
-            f"(差: {w['diff_hours']:+.1f}h, {pct_str})"
+            f"  - {w['work_name']}: {w['base_value']}{suffix} → {w['compare_value']}{suffix} "
+            f"(差: {w['diff_value']:+.1f}{suffix}, {pct_str})"
         )
 
     diff_pct_str = f"{summary.get('diff_pct', 0):+.1f}%" if summary.get('diff_pct') is not None else '新規'
