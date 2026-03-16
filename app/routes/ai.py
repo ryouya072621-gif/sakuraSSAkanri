@@ -18,7 +18,7 @@ from sqlalchemy import func
 from app import db
 from app.models import (
     WorkRecord, DisplayCategory, CategoryKeyword, CategoryMapping,
-    AICategorySuggestion, AIInsightCache, AIRequestLog, AppSetting,
+    AIInsightCache, AIRequestLog, AppSetting,
     WorkProjectMapping, STANDARD_TASK_TYPES
 )
 from app.services import get_ai_provider

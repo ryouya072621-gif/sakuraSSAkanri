@@ -1058,60 +1058,6 @@ def get_department_detail():
     })
 
 
-@bp.route('/analytics/capacity-simulation')
-def get_capacity_simulation():
-    """業務倍増シミュレーション用データ"""
-    category1 = request.args.get('category1')
-    start_date = request.args.get('start')
-    end_date = request.args.get('end')
-
-    # カテゴリ→価値ランク
-    categories = DisplayCategory.query.all()
-    cat_rank_map = {c.name: (c.value_rank or 'A') for c in categories}
-
-    CategoryMapping.clear_cache()
-
-    query = db.session.query(
-        WorkRecord.category2,
-        WorkRecord.work_name,
-        func.sum(WorkRecord.quantity).label('hours')
-    )
-    if category1:
-        query = query.filter(WorkRecord.category1 == category1)
-    if start_date:
-        query = query.filter(WorkRecord.work_date >= datetime.strptime(start_date, '%Y-%m-%d').date())
-    if end_date:
-        query = query.filter(WorkRecord.work_date <= datetime.strptime(end_date, '%Y-%m-%d').date())
-
-    results = query.group_by(WorkRecord.category2, WorkRecord.work_name).all()
-
-    # ランク別に業務をリスト化
-    rank_items = {'S': [], 'A': [], 'B': [], 'C': []}
-    for cat2, work_name, hours in results:
-        display_cat = CategoryMapping.auto_categorize(cat2, work_name)
-        rank = cat_rank_map.get(display_cat, 'A')
-        rank_items[rank].append({
-            'work_name': work_name,
-            'category': display_cat,
-            'hours': round(hours or 0, 1)
-        })
-
-    # 各ランクを時間降順ソート
-    for rank in rank_items:
-        rank_items[rank].sort(key=lambda x: x['hours'], reverse=True)
-
-    rank_totals = {r: round(sum(i['hours'] for i in items), 1) for r, items in rank_items.items()}
-    total = sum(rank_totals.values())
-
-    return jsonify({
-        'total_hours': round(total, 1),
-        'rank_totals': rank_totals,
-        'rank_items': {r: items[:20] for r, items in rank_items.items()},
-        'rank_colors': {'S': '#16a34a', 'A': '#2563eb', 'B': '#ca8a04', 'C': '#dc2626'},
-        'rank_labels': {'S': '高価値', 'A': '中価値', 'B': '低価値', 'C': '無駄'}
-    })
-
-
 # ============================================
 # 月次目標進捗API
 # ============================================

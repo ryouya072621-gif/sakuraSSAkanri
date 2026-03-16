@@ -11,7 +11,6 @@ class DisplayCategory(db.Model):
     color = db.Column(db.String(7), default='#6B7280')
     badge_bg_color = db.Column(db.String(7), default='#f3f4f6')
     badge_text_color = db.Column(db.String(7), default='#374151')
-    is_reduction_target = db.Column(db.Boolean, default=False)
     value_rank = db.Column(db.String(1), default='A')  # S:高価値, A:中価値, B:低価値, C:無駄
     sort_order = db.Column(db.Integer, default=0)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -34,7 +33,6 @@ class DisplayCategory(db.Model):
             'color': self.color,
             'badge_bg_color': self.badge_bg_color,
             'badge_text_color': self.badge_text_color,
-            'is_reduction_target': self.is_reduction_target,
             'value_rank': self.value_rank or 'A',
             'sort_order': self.sort_order,
             'keyword_count': self.keywords.count()
@@ -112,120 +110,6 @@ class AppSetting(db.Model):
         return setting
 
 
-class TaskReductionTarget(db.Model):
-    """業務名別の削減対象フラグ"""
-    __tablename__ = 'task_reduction_targets'
-
-    id = db.Column(db.Integer, primary_key=True)
-    work_name = db.Column(db.String(500), unique=True, nullable=False)
-    is_reduction_target = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-    # キャッシュ用クラス変数
-    _cache = None
-
-    @classmethod
-    def clear_cache(cls):
-        """キャッシュをクリア"""
-        cls._cache = None
-
-    @classmethod
-    def get_cached_targets(cls):
-        """削減対象の業務名をキャッシュから取得"""
-        if cls._cache is None:
-            targets = cls.query.filter_by(is_reduction_target=True).all()
-            cls._cache = {t.work_name for t in targets}
-        return cls._cache
-
-    @classmethod
-    def is_work_reduction_target(cls, work_name):
-        """業務名が削減対象かどうか"""
-        if not work_name:
-            return False
-        return work_name in cls.get_cached_targets()
-
-    @classmethod
-    def toggle_target(cls, work_name):
-        """削減対象フラグをトグル"""
-        target = cls.query.filter_by(work_name=work_name).first()
-        if target:
-            target.is_reduction_target = not target.is_reduction_target
-        else:
-            target = cls(work_name=work_name, is_reduction_target=True)
-            db.session.add(target)
-        db.session.commit()
-        cls.clear_cache()
-        return target.is_reduction_target
-
-    @classmethod
-    def set_as_target(cls, work_name):
-        """業務名を削減対象に設定"""
-        target = cls.query.filter_by(work_name=work_name).first()
-        if target:
-            target.is_reduction_target = True
-        else:
-            target = cls(work_name=work_name, is_reduction_target=True)
-            db.session.add(target)
-        db.session.commit()
-        cls.clear_cache()
-
-    @classmethod
-    def remove_from_target(cls, work_name):
-        """業務名を削減対象から解除"""
-        target = cls.query.filter_by(work_name=work_name).first()
-        if target:
-            target.is_reduction_target = False
-            db.session.commit()
-            cls.clear_cache()
-
-    @classmethod
-    def bulk_set_targets(cls, work_names, is_target=True):
-        """複数の業務名を一括で削減対象に設定/解除"""
-        for work_name in work_names:
-            target = cls.query.filter_by(work_name=work_name).first()
-            if target:
-                target.is_reduction_target = is_target
-            else:
-                target = cls(work_name=work_name, is_reduction_target=is_target)
-                db.session.add(target)
-        db.session.commit()
-        cls.clear_cache()
-
-
-class ReductionGoal(db.Model):
-    """削減目標設定"""
-    __tablename__ = 'reduction_goals'
-
-    id = db.Column(db.Integer, primary_key=True)
-    goal_type = db.Column(db.String(20), default='global')  # global, category, staff
-    target_percent = db.Column(db.Float, default=20.0)
-    baseline_hours = db.Column(db.Float, nullable=True)
-    baseline_period_start = db.Column(db.Date, nullable=True)
-    baseline_period_end = db.Column(db.Date, nullable=True)
-    category_id = db.Column(db.Integer, db.ForeignKey('display_categories.id'), nullable=True)
-    staff_name = db.Column(db.String(100), nullable=True)
-    is_active = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-    category = db.relationship('DisplayCategory', backref='reduction_goals')
-
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'goal_type': self.goal_type,
-            'target_percent': self.target_percent,
-            'baseline_hours': self.baseline_hours,
-            'baseline_period_start': self.baseline_period_start.strftime('%Y-%m-%d') if self.baseline_period_start else None,
-            'baseline_period_end': self.baseline_period_end.strftime('%Y-%m-%d') if self.baseline_period_end else None,
-            'category_id': self.category_id,
-            'category_name': self.category.name if self.category else None,
-            'staff_name': self.staff_name,
-            'is_active': self.is_active
-        }
-
-
 class WorkRecord(db.Model):
     """業務記録"""
     __tablename__ = 'work_records'
@@ -258,18 +142,15 @@ class CategoryMapping(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     source_category = db.Column(db.String(100), unique=True)
     display_category = db.Column(db.String(50), default='その他')
-    is_reduction_target = db.Column(db.Boolean, default=False)
 
     # キャッシュ用クラス変数
     _keyword_cache = None
-    _reduction_cache = None
     _default_category_cache = None
 
     @classmethod
     def clear_cache(cls):
         """キャッシュをクリア"""
         cls._keyword_cache = None
-        cls._reduction_cache = None
         cls._default_category_cache = None
 
     @classmethod
@@ -287,14 +168,6 @@ class CategoryMapping(db.Model):
                 for kw in keywords
             ]
         return cls._keyword_cache
-
-    @classmethod
-    def get_cached_reduction_targets(cls):
-        """削減対象カテゴリをキャッシュから取得"""
-        if cls._reduction_cache is None:
-            categories = DisplayCategory.query.filter_by(is_reduction_target=True).all()
-            cls._reduction_cache = {c.name for c in categories}
-        return cls._reduction_cache
 
     @classmethod
     def get_cached_default_category(cls):
@@ -343,50 +216,11 @@ class CategoryMapping(db.Model):
 
         return cls.get_cached_default_category()
 
-    @classmethod
-    def is_target_for_reduction(cls, display_cat):
-        """削減対象かどうか（キャッシュ使用）"""
-        return display_cat in cls.get_cached_reduction_targets()
 
 
 # ============================================
 # AI機能関連モデル
 # ============================================
-
-class AICategorySuggestion(db.Model):
-    """AIによるカテゴリ提案"""
-    __tablename__ = 'ai_category_suggestions'
-
-    id = db.Column(db.Integer, primary_key=True)
-    work_record_id = db.Column(db.Integer, db.ForeignKey('work_records.id'), nullable=True)
-    category1 = db.Column(db.String(100))
-    category2 = db.Column(db.String(100))
-    work_name = db.Column(db.String(500))
-    suggested_category_id = db.Column(db.Integer, db.ForeignKey('display_categories.id'))
-    confidence_score = db.Column(db.Float, default=0.0)  # 0.0-1.0
-    reasoning = db.Column(db.Text)
-    status = db.Column(db.String(20), default='pending')  # pending, accepted, rejected
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    reviewed_at = db.Column(db.DateTime)
-
-    work_record = db.relationship('WorkRecord', backref='ai_suggestions')
-    suggested_category = db.relationship('DisplayCategory')
-
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'work_record_id': self.work_record_id,
-            'category1': self.category1,
-            'category2': self.category2,
-            'work_name': self.work_name,
-            'suggested_category_id': self.suggested_category_id,
-            'suggested_category_name': self.suggested_category.name if self.suggested_category else None,
-            'confidence_score': self.confidence_score,
-            'reasoning': self.reasoning,
-            'status': self.status,
-            'created_at': self.created_at.isoformat() if self.created_at else None
-        }
-
 
 class AIInsightCache(db.Model):
     """AIインサイトのキャッシュ"""

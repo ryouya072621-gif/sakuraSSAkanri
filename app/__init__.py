@@ -16,11 +16,11 @@ def init_default_data():
 
     # デフォルトカテゴリ（value_rank: S=高価値, A=中価値, B=低価値, C=無駄）
     categories_data = [
-        {'name': 'コア業務', 'color': '#3B82F6', 'badge_bg_color': '#dbeafe', 'badge_text_color': '#1d4ed8', 'is_reduction_target': False, 'value_rank': 'S', 'sort_order': 1},
-        {'name': 'MTG', 'color': '#8B5CF6', 'badge_bg_color': '#ede9fe', 'badge_text_color': '#6d28d9', 'is_reduction_target': False, 'value_rank': 'A', 'sort_order': 2},
-        {'name': '事務', 'color': '#6B7280', 'badge_bg_color': '#f3f4f6', 'badge_text_color': '#374151', 'is_reduction_target': False, 'value_rank': 'A', 'sort_order': 3},
-        {'name': 'その他', 'color': '#EF4444', 'badge_bg_color': '#fee2e2', 'badge_text_color': '#dc2626', 'is_reduction_target': True, 'value_rank': 'B', 'sort_order': 4},
-        {'name': '移動', 'color': '#F97316', 'badge_bg_color': '#ffedd5', 'badge_text_color': '#ea580c', 'is_reduction_target': True, 'value_rank': 'C', 'sort_order': 5},
+        {'name': 'コア業務', 'color': '#3B82F6', 'badge_bg_color': '#dbeafe', 'badge_text_color': '#1d4ed8', 'value_rank': 'S', 'sort_order': 1},
+        {'name': 'MTG', 'color': '#8B5CF6', 'badge_bg_color': '#ede9fe', 'badge_text_color': '#6d28d9', 'value_rank': 'A', 'sort_order': 2},
+        {'name': '事務', 'color': '#6B7280', 'badge_bg_color': '#f3f4f6', 'badge_text_color': '#374151', 'value_rank': 'A', 'sort_order': 3},
+        {'name': 'その他', 'color': '#EF4444', 'badge_bg_color': '#fee2e2', 'badge_text_color': '#dc2626', 'value_rank': 'B', 'sort_order': 4},
+        {'name': '移動', 'color': '#F97316', 'badge_bg_color': '#ffedd5', 'badge_text_color': '#ea580c', 'value_rank': 'C', 'sort_order': 5},
     ]
 
     categories = {}
@@ -92,15 +92,9 @@ def _migrate_value_rank():
     columns = [c['name'] for c in inspector.get_columns('display_categories')]
     if 'value_rank' not in columns:
         db.session.execute(text("ALTER TABLE display_categories ADD COLUMN value_rank VARCHAR(1) DEFAULT 'A'"))
-        # デフォルト値を設定: 削減対象はB/C、それ以外はA、コア業務はS
         db.session.execute(text("UPDATE display_categories SET value_rank = 'S' WHERE name = 'コア業務'"))
         db.session.execute(text("UPDATE display_categories SET value_rank = 'C' WHERE name = '移動'"))
-        # is_reduction_target: PostgreSQLはbool型、SQLiteはint型なので両対応
-        is_pg = str(db.engine.url).startswith('postgresql')
-        if is_pg:
-            db.session.execute(text("UPDATE display_categories SET value_rank = 'B' WHERE is_reduction_target = true AND value_rank = 'A'"))
-        else:
-            db.session.execute(text("UPDATE display_categories SET value_rank = 'B' WHERE is_reduction_target = 1 AND value_rank = 'A'"))
+        db.session.execute(text("UPDATE display_categories SET value_rank = 'B' WHERE value_rank = 'A' AND name IN ('その他')"))
         db.session.commit()
 
 
