@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from flask import Blueprint, jsonify, request, current_app
 from sqlalchemy import func, distinct
 from app import db
-from app.models import WorkRecord, CategoryMapping, DisplayCategory, AppSetting, WorkProjectMapping, STANDARD_TASK_TYPES
+from app.models import WorkRecord, CategoryMapping, DisplayCategory, AppSetting, WorkProjectMapping, STANDARD_TASK_TYPES, WorkTypeClassification, WORK_TYPE_CHOICES
 from app.services.task_grouper import group_ranking_by_task_group, get_unit_type, get_unit_suffix, get_sub_category
 
 bp = Blueprint('api', __name__, url_prefix='/api')
@@ -1331,6 +1331,43 @@ def get_department_month_detail_data(department, base_month, compare_month):
     work_changes.sort(key=lambda x: x['abs_diff'], reverse=True)
     work_changes = work_changes[:30]
 
+    # --- 業務タイプ別比較（時間制のみ） ---
+    def _work_type_breakdown(start, end):
+        rows = db.session.query(
+            WorkRecord.work_name,
+            func.sum(WorkRecord.quantity).label('qty'),
+        ).filter(
+            WorkRecord.category1 == department,
+            WorkRecord.work_date >= start,
+            WorkRecord.work_date <= end,
+        ).group_by(WorkRecord.work_name).all()
+
+        type_hours = {}
+        for work_name, qty in rows:
+            if get_unit_type(work_name) == 'count':
+                continue
+            wt = WorkTypeClassification.get_work_type(work_name) or '判断・対応'
+            type_hours[wt] = type_hours.get(wt, 0) + float(qty or 0)
+        return type_hours
+
+    base_types = _work_type_breakdown(base_start, base_end)
+    comp_types = _work_type_breakdown(comp_start, comp_end)
+    all_types = WORK_TYPE_CHOICES  # 固定順序
+
+    work_type_breakdown = []
+    for wt in all_types:
+        bh = base_types.get(wt, 0)
+        ch = comp_types.get(wt, 0)
+        d = ch - bh
+        pct = round(d / bh * 100, 1) if bh > 0 else (0 if d == 0 else None)
+        work_type_breakdown.append({
+            'work_type': wt,
+            'base_hours': round(bh, 1),
+            'compare_hours': round(ch, 1),
+            'diff_hours': round(d, 1),
+            'diff_pct': pct,
+        })
+
     return {
         'department': department,
         'base_month': base_month,
@@ -1339,6 +1376,7 @@ def get_department_month_detail_data(department, base_month, compare_month):
         'category_breakdown': category_breakdown,
         'staff_breakdown': staff_breakdown,
         'work_changes': work_changes,
+        'work_type_breakdown': work_type_breakdown,
     }
 
 

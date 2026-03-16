@@ -621,6 +621,89 @@ class WorkProjectMapping(db.Model):
 
 
 # ============================================
+# 業務タイプ分類（第2軸）
+# ============================================
+
+WORK_TYPE_CHOICES = ['定型処理', '判断・対応', '改善・企画', '連絡・調整']
+
+
+class WorkTypeClassification(db.Model):
+    """業務名の業務タイプ分類（定型処理/判断・対応/改善・企画/連絡・調整）"""
+    __tablename__ = 'work_type_classifications'
+
+    id = db.Column(db.Integer, primary_key=True)
+    work_name = db.Column(db.String(500), unique=True, nullable=False)
+    category1 = db.Column(db.String(100))
+    category2 = db.Column(db.String(100))
+    work_type = db.Column(db.String(50), nullable=False)
+    confidence_score = db.Column(db.Float, default=0.0)
+    is_confirmed = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    _cache = None
+
+    __table_args__ = (
+        db.Index('idx_work_type', 'work_type'),
+    )
+
+    @classmethod
+    def clear_cache(cls):
+        cls._cache = None
+
+    @classmethod
+    def get_cached_mappings(cls):
+        """全マッピングをキャッシュから取得"""
+        if cls._cache is None:
+            mappings = cls.query.all()
+            cls._cache = {m.work_name: m.work_type for m in mappings}
+        return cls._cache
+
+    @classmethod
+    def get_work_type(cls, work_name):
+        """業務名から業務タイプを取得"""
+        mappings = cls.get_cached_mappings()
+        return mappings.get(work_name)
+
+    @classmethod
+    def bulk_upsert(cls, items):
+        """複数の分類を一括更新/追加
+
+        items: [{work_name, category1, category2, work_type, confidence_score}, ...]
+        """
+        for item in items:
+            existing = cls.query.filter_by(work_name=item['work_name']).first()
+            if existing:
+                if not existing.is_confirmed:
+                    existing.work_type = item.get('work_type', existing.work_type)
+                    existing.confidence_score = item.get('confidence_score', existing.confidence_score)
+                existing.category1 = item.get('category1', existing.category1)
+                existing.category2 = item.get('category2', existing.category2)
+            else:
+                mapping = cls(
+                    work_name=item['work_name'],
+                    category1=item.get('category1'),
+                    category2=item.get('category2'),
+                    work_type=item.get('work_type', '定型処理'),
+                    confidence_score=item.get('confidence_score', 0.0)
+                )
+                db.session.add(mapping)
+        db.session.commit()
+        cls.clear_cache()
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'work_name': self.work_name,
+            'category1': self.category1,
+            'category2': self.category2,
+            'work_type': self.work_type,
+            'confidence_score': self.confidence_score,
+            'is_confirmed': self.is_confirmed
+        }
+
+
+# ============================================
 # Google Sheets 月次報告書モデル
 # ============================================
 

@@ -19,7 +19,8 @@ from app import db
 from app.models import (
     WorkRecord, DisplayCategory, CategoryKeyword, CategoryMapping,
     AIInsightCache, AIRequestLog, AppSetting,
-    WorkProjectMapping, STANDARD_TASK_TYPES
+    WorkProjectMapping, STANDARD_TASK_TYPES,
+    WorkTypeClassification, WORK_TYPE_CHOICES
 )
 from app.services import get_ai_provider
 from app.services.ai_base import AIProviderError
@@ -656,6 +657,70 @@ def department_month_report():
         logger.error(f'Unexpected department report error: {e}')
         return jsonify({
             'error': f'レポート生成エラー: {str(e)}'
+        }), 500
+
+
+# ============================================
+# 業務タイプ一括分類
+# ============================================
+
+@bp.route('/classify-work-types', methods=['POST'])
+def classify_work_types():
+    """業務名を業務タイプに分類（バッチ処理対応）
+
+    Request body:
+    {
+        "items": [{"work_name": "...", "category1": "...", "category2": "..."}, ...],
+        "save": true
+    }
+    """
+    data = request.get_json()
+    items = data.get('items', [])
+    save_to_db = data.get('save', False)
+    batch_size = data.get('batch_size', 50)
+
+    if not items:
+        return jsonify({'error': 'items is required'}), 400
+
+    try:
+        provider = get_ai_provider()
+        all_results = []
+
+        # バッチ処理
+        for i in range(0, len(items), batch_size):
+            batch = items[i:i + batch_size]
+            results = provider.classify_work_types(batch)
+            all_results.extend(results)
+
+        if save_to_db and all_results:
+            mappings = []
+            for j, result in enumerate(all_results):
+                item = items[j] if j < len(items) else {}
+                mappings.append({
+                    'work_name': result.get('work_name', item.get('work_name', '')),
+                    'category1': item.get('category1', ''),
+                    'category2': item.get('category2', ''),
+                    'work_type': result.get('work_type', '定型処理'),
+                    'confidence_score': 0.8
+                })
+            WorkTypeClassification.bulk_upsert(mappings)
+
+        return jsonify({
+            'results': all_results,
+            'total': len(all_results),
+            'saved': save_to_db
+        })
+
+    except AIProviderError as e:
+        logger.error(f'Work type classification error: {e}')
+        return jsonify({
+            'error': 'AI機能が一時的に利用できません',
+            'message': str(e)
+        }), 503
+    except Exception as e:
+        logger.error(f'Unexpected work type classification error: {e}')
+        return jsonify({
+            'error': f'分類エラー: {str(e)}'
         }), 500
 
 

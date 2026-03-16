@@ -267,6 +267,7 @@ function selectDepartment(dept, baseMonth, compMonth) {
         renderDetailKPIs(data.summary);
         renderTrendChart(trendData);
         renderCategoryTab(data.category_breakdown);
+        renderWorkTypeTab(data.work_type_breakdown);
         renderStaffTab(data.staff_breakdown);
         renderWorkTab(data.work_changes);
     })
@@ -389,6 +390,30 @@ function renderCategoryTab(breakdown) {
 
     // チャート
     renderGroupedBarChart('deptCatCanvas', breakdown, 'category');
+}
+
+// ============================================
+// 業務タイプ別タブ
+// ============================================
+function renderWorkTypeTab(breakdown) {
+    const tbody = document.querySelector('#workTypeTable tbody');
+    if (!breakdown || breakdown.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3">データなし</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = breakdown.map(item => `
+        <tr>
+            <td>${deptEscapeHtml(item.work_type)}</td>
+            <td class="text-end">${item.base_hours.toFixed(1)}h</td>
+            <td class="text-end">${item.compare_hours.toFixed(1)}h</td>
+            <td class="text-end">${formatDiff(item.diff_hours, 'h')}</td>
+            <td class="text-end">${formatPct(item.diff_pct)}</td>
+        </tr>
+    `).join('');
+
+    // チャート
+    renderGroupedBarChart('deptWorkTypeCanvas', breakdown, 'work_type');
 }
 
 // ============================================

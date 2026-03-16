@@ -363,6 +363,11 @@
                     </button>
                 </li>
                 <li class="nav-item">
+                    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#workTypePane">
+                        <i class="bi bi-diagram-3 me-1"></i>業務タイプ別
+                    </button>
+                </li>
+                <li class="nav-item">
                     <button class="nav-link" data-bs-toggle="tab" data-bs-target="#workPane">
                         <i class="bi bi-list-task me-1"></i>業務変動TOP
                     </button>
@@ -401,6 +406,20 @@
                         <table class="table table-sm" id="staffTable">
                             <thead><tr>
                                 <th>スタッフ</th><th class="text-end">前月</th>
+                                <th class="text-end">今月</th><th class="text-end">差分</th><th class="text-end">変化率</th>
+                            </tr></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 業務タイプ別 -->
+                <div class="tab-pane fade" id="workTypePane">
+                    <div style="height:350px;"><canvas id="deptWorkTypeCanvas"></canvas></div>
+                    <div class="table-responsive mt-3">
+                        <table class="table table-sm" id="workTypeTable">
+                            <thead><tr>
+                                <th>業務タイプ</th><th class="text-end">前月</th>
                                 <th class="text-end">今月</th><th class="text-end">差分</th><th class="text-end">変化率</th>
                             </tr></thead>
                             <tbody></tbody>

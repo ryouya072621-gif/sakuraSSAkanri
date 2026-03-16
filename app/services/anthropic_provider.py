@@ -33,7 +33,9 @@ from .prompts import (
     build_chat_prompt,
     build_report_prompt,
     build_task_grouping_prompt,
-    build_project_extraction_prompt
+    build_project_extraction_prompt,
+    WORK_TYPE_SYSTEM_PROMPT,
+    build_work_type_prompt
 )
 
 logger = logging.getLogger(__name__)
@@ -289,6 +291,45 @@ class AnthropicProvider(AIProvider):
                 'work_name': item.get('work_name', ''),
                 'project': item.get('project', '社内（一般）'),
                 'task_type': item.get('task_type', 'その他')
+            })
+
+        return results
+
+    def classify_work_types(
+        self,
+        work_items: List[Dict[str, str]]
+    ) -> List[Dict[str, str]]:
+        """業務名を業務タイプに分類
+
+        Args:
+            work_items: [{'work_name': '...', 'category1': '...', 'category2': '...'}, ...]
+
+        Returns:
+            [{'work_name': '...', 'work_type': '...', 'reasoning': '...'}, ...]
+        """
+        if not work_items:
+            return []
+
+        valid_types = {'定型処理', '判断・対応', '改善・企画', '連絡・調整'}
+
+        user_prompt = build_work_type_prompt(work_items)
+        response_text = self._make_request(
+            WORK_TYPE_SYSTEM_PROMPT,
+            user_prompt,
+            max_tokens=8192
+        )
+
+        parsed = self._parse_json_response(response_text)
+
+        results = []
+        for item in parsed:
+            work_type = item.get('work_type', '定型処理')
+            if work_type not in valid_types:
+                work_type = '定型処理'
+            results.append({
+                'work_name': item.get('work_name', ''),
+                'work_type': work_type,
+                'reasoning': item.get('reasoning', '')
             })
 
         return results
