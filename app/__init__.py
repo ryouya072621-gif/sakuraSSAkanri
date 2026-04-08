@@ -113,12 +113,13 @@ def create_app(config_class=Config):
 
     db.init_app(app)
 
-    from app.routes import main, upload, api, admin, ai
+    from app.routes import main, upload, api, admin, ai, scraper
     app.register_blueprint(main.bp)
     app.register_blueprint(upload.bp)
     app.register_blueprint(api.bp)
     app.register_blueprint(admin.bp)
     app.register_blueprint(ai.bp)
+    app.register_blueprint(scraper.bp)
 
     with app.app_context():
         db.create_all()

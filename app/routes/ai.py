@@ -1023,3 +1023,165 @@ def _get_staff_summary(params: dict) -> list:
     ]
 
 
+# ============================================================
+# スタッフ評価AI分析
+# ============================================================
+
+@bp.route('/staff-evaluation', methods=['POST'])
+def staff_evaluation_ai():
+    """
+    スタッフ個別 or チーム全体のAI評価レポートを生成
+
+    Request body:
+    {
+        "staff_name": "田中唯",   // 省略時は全スタッフ
+        "year_month": "2026-04"   // 省略時は当月
+    }
+    """
+    from datetime import date, timedelta
+    import calendar
+
+    data = request.get_json(silent=True) or {}
+    staff_name = data.get('staff_name')
+    year_month = data.get('year_month') or datetime.now().strftime('%Y-%m')
+
+    # キャッシュキー
+    cache_key = _generate_cache_key('staff_eval', {'staff': staff_name, 'ym': year_month})
+    cached = AIInsightCache.get_cached(cache_key)
+    if cached:
+        cached['cached'] = True
+        return jsonify(cached)
+
+    # ── ランキングデータ収集 ──
+    ranking_q = db.session.query(
+        WorkRecord.staff_name,
+        func.sum(WorkRecord.total_amount).label('total_amount'),
+        func.count(WorkRecord.id).label('record_count'),
+        func.sum(WorkRecord.quantity).label('total_qty'),
+    ).filter(WorkRecord.source_month == year_month).group_by(
+        WorkRecord.staff_name
+    ).order_by(func.sum(WorkRecord.total_amount).desc()).all()
+
+    ranking = [
+        {
+            'rank': i + 1,
+            'staff_name': name,
+            'total_amount': int(amt or 0),
+            'record_count': int(cnt or 0),
+        }
+        for i, (name, amt, cnt, qty) in enumerate(ranking_q) if name
+    ]
+
+    # ── 対象スタッフの業務内訳 ──
+    if staff_name:
+        work_rows = db.session.query(
+            WorkRecord.category1,
+            WorkRecord.category2,
+            WorkRecord.work_name,
+            func.sum(WorkRecord.total_amount).label('amount'),
+            func.count(WorkRecord.id).label('cnt'),
+        ).filter(
+            WorkRecord.source_month == year_month,
+            WorkRecord.staff_name == staff_name,
+        ).group_by(
+            WorkRecord.category1, WorkRecord.category2, WorkRecord.work_name
+        ).order_by(func.sum(WorkRecord.total_amount).desc()).limit(20).all()
+
+        work_summary = [
+            {'category': f"{c1}/{c2}", 'work_name': wn, 'amount': int(a or 0), 'count': int(c)}
+            for c1, c2, wn, a, c in work_rows
+        ]
+        target_label = f"{staff_name}（{year_month}）"
+    else:
+        work_summary = []
+        target_label = f"チーム全体（{year_month}）"
+
+    # ── 先月比 ──
+    ym_parts = year_month.split('-')
+    last_ym_date = date(int(ym_parts[0]), int(ym_parts[1]), 1) - timedelta(days=1)
+    last_ym = last_ym_date.strftime('%Y-%m')
+
+    def get_amount(ym, sname=None):
+        q = db.session.query(func.sum(WorkRecord.total_amount)).filter(
+            WorkRecord.source_month == ym
+        )
+        if sname:
+            q = q.filter(WorkRecord.staff_name == sname)
+        return int(q.scalar() or 0)
+
+    this_amount = get_amount(year_month, staff_name)
+    last_amount = get_amount(last_ym, staff_name)
+    change_pct = round((this_amount - last_amount) / last_amount * 100, 1) if last_amount > 0 else None
+
+    # ── AIプロンプト組み立て ──
+    prompt_data = {
+        'target': target_label,
+        'year_month': year_month,
+        'this_amount': this_amount,
+        'last_amount': last_amount,
+        'change_pct': change_pct,
+        'ranking': ranking[:15],
+        'work_breakdown': work_summary,
+        'total_staff': len(ranking),
+    }
+
+    system_prompt = (
+        "あなたは医療法人の業務管理コンサルタントです。"
+        "SSA（社内請求システム）の売上データを分析して、具体的で実用的な評価コメントを日本語で提供してください。"
+        "データに基づいた客観的な評価を行い、改善点があれば具体的なアクションも提案してください。"
+    )
+
+    user_prompt = f"""
+以下のSSA売上データを分析して、評価レポートを作成してください。
+
+【対象】{prompt_data['target']}
+【今月売上】¥{prompt_data['this_amount']:,}
+【先月売上】¥{prompt_data['last_amount']:,}
+【先月比】{f"{change_pct:+.1f}%" if change_pct is not None else "データなし"}
+
+【チーム内順位（上位15名）】
+{chr(10).join(f"{r['rank']}位: {r['staff_name']} ¥{r['total_amount']:,} ({r['record_count']}件)" for r in ranking[:15])}
+
+{"【業務内訳（上位20件）】" + chr(10) + chr(10).join(f"・{w['category']}: {w['work_name']} ¥{w['amount']:,}×{w['count']}件" for w in work_summary[:20]) if work_summary else ""}
+
+以下の形式でJSONレスポンスを返してください：
+{{
+  "overall_comment": "総合評価コメント（2-3文）",
+  "strengths": ["強み1", "強み2", "強み3"],
+  "concerns": ["懸念点1", "懸念点2"],
+  "recommendations": ["提案1", "提案2", "提案3"],
+  "score": 1-10の数値評価
+}}
+"""
+
+    try:
+        provider = get_ai_provider()
+        raw = provider._make_request(system_prompt, user_prompt, max_tokens=1500)
+        result = provider._parse_json_response(raw)
+
+        response_data = {
+            'target': target_label,
+            'year_month': year_month,
+            'this_amount': this_amount,
+            'last_amount': last_amount,
+            'change_pct': change_pct,
+            'overall_comment': result.get('overall_comment', ''),
+            'strengths': result.get('strengths', []),
+            'concerns': result.get('concerns', []),
+            'recommendations': result.get('recommendations', []),
+            'score': result.get('score', 5),
+            'generated_at': datetime.utcnow().isoformat(),
+            'cached': False,
+        }
+
+        AIInsightCache.set_cache(cache_key, 'staff_eval', response_data, expires_hours=6)
+        return jsonify(response_data)
+
+    except AIProviderError as e:
+        logger.error(f'Staff evaluation AI error: {e}')
+        return jsonify({'error': 'AI分析が一時的に利用できません'}), 503
+    except Exception as e:
+        logger.error(f'Staff evaluation error: {e}', exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+

@@ -1617,3 +1617,152 @@ def get_department_monthly_trend():
         'rev_per_hour': rev_per_hour_list,
         'cumulative_revenue': cumulative_list,
     })
+
+
+# ============================================================
+# スタッフ評価API（SSA連携データ）
+# ============================================================
+
+@bp.route('/staff-ranking')
+def get_staff_ranking():
+    """スタッフ別売上ランキング（金額・件数）"""
+    year_month = request.args.get('year_month')  # YYYY-MM
+    start_date = request.args.get('start')
+    end_date = request.args.get('end')
+
+    query = db.session.query(
+        WorkRecord.staff_name,
+        func.sum(WorkRecord.total_amount).label('total_amount'),
+        func.count(WorkRecord.id).label('record_count'),
+        func.sum(WorkRecord.quantity).label('total_quantity'),
+    )
+
+    if year_month:
+        query = query.filter(WorkRecord.source_month == year_month)
+    elif start_date and end_date:
+        query = query.filter(
+            WorkRecord.work_date >= datetime.strptime(start_date, '%Y-%m-%d').date(),
+            WorkRecord.work_date <= datetime.strptime(end_date, '%Y-%m-%d').date(),
+        )
+    else:
+        # デフォルト: 当月
+        today = datetime.now().date()
+        year_month = today.strftime('%Y-%m')
+        query = query.filter(WorkRecord.source_month == year_month)
+
+    rows = query.group_by(WorkRecord.staff_name).order_by(func.sum(WorkRecord.total_amount).desc()).all()
+
+    result = []
+    for i, (name, amount, count, qty) in enumerate(rows, 1):
+        if not name:
+            continue
+        result.append({
+            'rank': i,
+            'staff_name': name,
+            'total_amount': int(amount or 0),
+            'record_count': int(count or 0),
+            'total_quantity': int(qty or 0),
+        })
+
+    return jsonify({'year_month': year_month, 'ranking': result})
+
+
+@bp.route('/staff-weekly-sales')
+def get_staff_weekly_sales():
+    """スタッフ別週次売上推移（上位N名）"""
+    top_n = int(request.args.get('top', 10))
+    weeks = int(request.args.get('weeks', 8))
+
+    today = datetime.now().date()
+    start = today - timedelta(weeks=weeks)
+
+    # 対象期間の全データを取得
+    rows = db.session.query(
+        WorkRecord.staff_name,
+        WorkRecord.work_date,
+        func.sum(WorkRecord.total_amount).label('amount'),
+    ).filter(
+        WorkRecord.work_date >= start,
+    ).group_by(WorkRecord.staff_name, WorkRecord.work_date).all()
+
+    # 週ごとに集計
+    staff_weekly = {}
+    week_keys_set = set()
+    for name, work_date, amount in rows:
+        if not name:
+            continue
+        week_start = work_date - timedelta(days=work_date.weekday())
+        wk = week_start.strftime('%m/%d')
+        week_keys_set.add((week_start, wk))
+        staff_weekly.setdefault(name, {})
+        staff_weekly[name][wk] = staff_weekly[name].get(wk, 0) + int(amount or 0)
+
+    week_labels = [wk for _, wk in sorted(week_keys_set)]
+
+    # 合計金額でTop N絞り込み
+    staff_totals = {name: sum(v.values()) for name, v in staff_weekly.items()}
+    top_staff = sorted(staff_totals, key=lambda x: -staff_totals[x])[:top_n]
+
+    colors = [
+        '#6366f1','#ec4899','#14b8a6','#f97316','#84cc16',
+        '#8b5cf6','#06b6d4','#f59e0b','#10b981','#ef4444',
+    ]
+    datasets = []
+    for i, name in enumerate(top_staff):
+        data = [staff_weekly[name].get(wk, 0) for wk in week_labels]
+        datasets.append({
+            'label': name,
+            'data': data,
+            'borderColor': colors[i % len(colors)],
+            'backgroundColor': 'transparent',
+            'tension': 0.3,
+        })
+
+    return jsonify({'labels': week_labels, 'datasets': datasets})
+
+
+@bp.route('/staff-alerts')
+def get_staff_alerts():
+    """スタッフ別パフォーマンスアラート（先月比大幅減少）"""
+    today = datetime.now().date()
+    this_month = today.strftime('%Y-%m')
+    last_month = (today.replace(day=1) - timedelta(days=1)).strftime('%Y-%m')
+
+    def get_monthly_amounts(ym):
+        rows = db.session.query(
+            WorkRecord.staff_name,
+            func.sum(WorkRecord.total_amount).label('amount'),
+        ).filter(WorkRecord.source_month == ym).group_by(WorkRecord.staff_name).all()
+        return {name: int(amt or 0) for name, amt in rows if name}
+
+    this_data = get_monthly_amounts(this_month)
+    last_data = get_monthly_amounts(last_month)
+
+    # 先月比の日割り換算（今月の経過日数/月全体）
+    days_elapsed = today.day
+    import calendar
+    days_in_month = calendar.monthrange(today.year, today.month)[1]
+    elapsed_ratio = days_elapsed / days_in_month
+
+    alerts = []
+    for name, last_amt in last_data.items():
+        if last_amt < 10000:  # 1万円未満は除外
+            continue
+        this_amt = this_data.get(name, 0)
+        # 今月の日割り予測
+        projected = int(this_amt / elapsed_ratio) if elapsed_ratio > 0 else 0
+        change_pct = int((projected - last_amt) / last_amt * 100) if last_amt > 0 else 0
+
+        if change_pct <= -20:  # 20%以上減少
+            alerts.append({
+                'staff_name': name,
+                'last_month': last_month,
+                'last_amount': last_amt,
+                'this_amount': this_amt,
+                'projected': projected,
+                'change_pct': change_pct,
+                'severity': 'danger' if change_pct <= -40 else 'warning',
+            })
+
+    alerts.sort(key=lambda x: x['change_pct'])
+    return jsonify({'alerts': alerts, 'this_month': this_month, 'last_month': last_month})

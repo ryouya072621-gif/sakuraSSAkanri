@@ -805,6 +805,59 @@ class MonthlyBusinessItem(db.Model):
         }
 
 
+# ============================================
+# SSA アプリ 日次売上データ
+# ============================================
+
+class SSADailyRecord(db.Model):
+    """SSA管理画面から自動取得した全社売上日報データ"""
+    __tablename__ = 'ssa_daily_records'
+
+    id = db.Column(db.Integer, primary_key=True)
+    fetch_date = db.Column(db.Date, nullable=False)        # データの日付
+    year_month = db.Column(db.String(7), nullable=False)   # YYYY-MM
+    staff_name = db.Column(db.String(100), nullable=False) # 部門名/スタッフ名
+    target_amount = db.Column(db.Integer, default=0)       # 目標（千円）
+    received_prev_day = db.Column(db.Integer, default=0)   # 受領：前日
+    received_today = db.Column(db.Integer, default=0)      # 受領：当日
+    received_cumulative = db.Column(db.Integer, default=0) # 受領：累計
+    received_diff = db.Column(db.Integer, default=0)       # 受領：目標差
+    confirmed_remaining = db.Column(db.Integer, default=0) # 確認：確認中残
+    confirmed_prediction = db.Column(db.Integer, default=0)# 確認：当月予測
+    confirmed_diff = db.Column(db.Integer, default=0)      # 確認：目標差
+    prev_prev_month = db.Column(db.Integer, default=0)     # 前々月
+    prev_month = db.Column(db.Integer, default=0)          # 前月
+    prev_year_same_month = db.Column(db.Integer, default=0)# 前年同月
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        db.UniqueConstraint('fetch_date', 'staff_name', name='uq_ssa_daily'),
+        db.Index('ix_ssa_daily_fetch_date', 'fetch_date'),
+        db.Index('ix_ssa_daily_staff_name', 'staff_name'),
+        db.Index('ix_ssa_daily_year_month', 'year_month'),
+    )
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'fetch_date': self.fetch_date.isoformat() if self.fetch_date else None,
+            'year_month': self.year_month,
+            'staff_name': self.staff_name,
+            'target_amount': self.target_amount,
+            'received_prev_day': self.received_prev_day,
+            'received_today': self.received_today,
+            'received_cumulative': self.received_cumulative,
+            'received_diff': self.received_diff,
+            'confirmed_remaining': self.confirmed_remaining,
+            'confirmed_prediction': self.confirmed_prediction,
+            'confirmed_diff': self.confirmed_diff,
+            'prev_prev_month': self.prev_prev_month,
+            'prev_month': self.prev_month,
+            'prev_year_same_month': self.prev_year_same_month,
+        }
+
+
 # 標準作業タイプ一覧
 STANDARD_TASK_TYPES = [
     'MTG・会議',

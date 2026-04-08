@@ -42,3 +42,12 @@ def project_analysis():
 def department_overview():
     """部門比較 → ダッシュボードに統合済み"""
     return redirect(url_for('main.dashboard'))
+
+
+@bp.route('/staff-evaluation')
+def staff_evaluation():
+    """スタッフ評価・ランキングページ"""
+    record_count = WorkRecord.query.count()
+    if record_count == 0:
+        return redirect(url_for('upload.index'))
+    return render_template('staff_evaluation.html')

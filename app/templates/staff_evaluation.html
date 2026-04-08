@@ -1,0 +1,296 @@
+{% extends "base.html" %}
+{% block title %}スタッフ評価・ランキング{% endblock %}
+
+{% block extra_css %}
+<style>
+  body { background: #f1f5f9; }
+  .page-header { background: linear-gradient(135deg, #1e293b 0%, #334155 100%); color: #fff; padding: 1.5rem 2rem; }
+  .page-header h1 { font-size: 1.4rem; font-weight: 700; margin: 0; }
+  .nav-tabs .nav-link { color: #64748b; font-weight: 500; }
+  .nav-tabs .nav-link.active { color: #6366f1; border-bottom: 2px solid #6366f1; }
+  .card { border: none; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+  .rank-badge { width: 2rem; height: 2rem; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: .85rem; }
+  .rank-1 { background: #fbbf24; color: #78350f; }
+  .rank-2 { background: #d1d5db; color: #374151; }
+  .rank-3 { background: #c0825a; color: #fff; }
+  .rank-other { background: #e2e8f0; color: #475569; }
+  .alert-danger { border-left: 4px solid #ef4444; }
+  .alert-warning { border-left: 4px solid #f59e0b; }
+  .progress-bar-custom { height: 6px; border-radius: 3px; background: #e2e8f0; overflow: hidden; }
+  .progress-bar-fill { height: 100%; border-radius: 3px; transition: width .5s; }
+  .month-nav { display: flex; align-items: center; gap: .5rem; }
+  .topnav { background: #fff; border-bottom: 1px solid #e2e8f0; padding: .75rem 2rem; display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap; }
+  .topnav a { color: #64748b; text-decoration: none; font-size: .9rem; display: flex; align-items: center; gap: .3rem; }
+  .topnav a:hover, .topnav a.active { color: #6366f1; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1><i class="bi bi-bar-chart-steps me-2"></i>スタッフ評価・ランキング</h1>
+</div>
+
+<nav class="topnav">
+  <a href="/dashboard"><i class="bi bi-speedometer2"></i>ダッシュボード</a>
+  <a href="/staff-comparison"><i class="bi bi-people"></i>スタッフ比較</a>
+  <a href="/staff-evaluation" class="active"><i class="bi bi-trophy"></i>評価ランキング</a>
+  <a href="/project-analysis"><i class="bi bi-diagram-3"></i>プロジェクト分析</a>
+</nav>
+
+<div class="container-fluid p-3">
+
+  <!-- 月選択 -->
+  <div class="d-flex align-items-center gap-3 mb-3">
+    <button class="btn btn-outline-secondary btn-sm" onclick="changeMonth(-1)"><i class="bi bi-chevron-left"></i></button>
+    <span id="currentMonthLabel" class="fw-bold fs-5"></span>
+    <button class="btn btn-outline-secondary btn-sm" onclick="changeMonth(1)"><i class="bi bi-chevron-right"></i></button>
+    <span class="text-muted small ms-2">月を選択してランキングを表示</span>
+  </div>
+
+  <div class="row g-3">
+
+    <!-- 売上金額ランキング -->
+    <div class="col-lg-5">
+      <div class="card h-100">
+        <div class="card-header bg-white border-0 pt-3 pb-0">
+          <h6 class="fw-bold mb-0"><i class="bi bi-trophy-fill text-warning me-1"></i>売上金額ランキング</h6>
+        </div>
+        <div class="card-body pt-2">
+          <div id="rankingList">
+            <div class="text-center text-muted py-4"><div class="spinner-border spinner-border-sm"></div> 読み込み中...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 週次推移チャート -->
+    <div class="col-lg-7">
+      <div class="card h-100">
+        <div class="card-header bg-white border-0 pt-3 pb-0 d-flex justify-content-between align-items-center">
+          <h6 class="fw-bold mb-0"><i class="bi bi-graph-up text-primary me-1"></i>スタッフ別週次売上推移（上位10名）</h6>
+          <select id="weeksSelect" class="form-select form-select-sm w-auto" onchange="loadWeeklyChart()">
+            <option value="8">過去8週</option>
+            <option value="12">過去12週</option>
+            <option value="16">過去16週</option>
+          </select>
+        </div>
+        <div class="card-body">
+          <canvas id="weeklyChart" height="250"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- アラート -->
+    <div class="col-lg-6">
+      <div class="card h-100">
+        <div class="card-header bg-white border-0 pt-3 pb-0">
+          <h6 class="fw-bold mb-0"><i class="bi bi-exclamation-triangle-fill text-danger me-1"></i>パフォーマンスアラート <span class="text-muted fw-normal small">（先月比20%以上減少）</span></h6>
+        </div>
+        <div class="card-body pt-2">
+          <div id="alertList">
+            <div class="text-center text-muted py-3"><div class="spinner-border spinner-border-sm"></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AI分析 -->
+    <div class="col-lg-6">
+      <div class="card h-100">
+        <div class="card-header bg-white border-0 pt-3 pb-0">
+          <h6 class="fw-bold mb-0"><i class="bi bi-robot text-primary me-1"></i>AI評価レポート</h6>
+        </div>
+        <div class="card-body pt-2">
+          <div class="d-flex gap-2 mb-3">
+            <select id="aiStaffSelect" class="form-select form-select-sm">
+              <option value="">チーム全体</option>
+            </select>
+            <button class="btn btn-primary btn-sm px-3" onclick="runAIEval()">
+              <i class="bi bi-stars me-1"></i>AI分析
+            </button>
+          </div>
+          <div id="aiResult">
+            <p class="text-muted small">スタッフを選択して「AI分析」ボタンを押してください。</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let currentYearMonth = '';
+let weeklyChart = null;
+
+function getCurrentYearMonth() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+}
+
+function changeMonth(delta) {
+  const [y, m] = currentYearMonth.split('-').map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  currentYearMonth = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+  document.getElementById('currentMonthLabel').textContent = `${d.getFullYear()}年${d.getMonth()+1}月`;
+  loadRanking();
+}
+
+async function loadRanking() {
+  const res = await fetch(`/api/staff-ranking?year_month=${currentYearMonth}`);
+  const data = await res.json();
+  const list = document.getElementById('rankingList');
+
+  if (!data.ranking || data.ranking.length === 0) {
+    list.innerHTML = '<p class="text-muted text-center py-3">データなし</p>';
+    return;
+  }
+
+  const maxAmt = data.ranking[0].total_amount || 1;
+  list.innerHTML = data.ranking.map(r => {
+    const rankClass = r.rank <= 3 ? `rank-${r.rank}` : 'rank-other';
+    const pct = Math.round(r.total_amount / maxAmt * 100);
+    const amt = r.total_amount.toLocaleString();
+    return `
+      <div class="d-flex align-items-center gap-2 py-2 border-bottom">
+        <div class="rank-badge ${rankClass}">${r.rank}</div>
+        <div class="flex-grow-1 min-w-0">
+          <div class="d-flex justify-content-between align-items-baseline">
+            <span class="fw-semibold text-truncate">${r.staff_name}</span>
+            <span class="text-primary fw-bold ms-2">¥${amt}</span>
+          </div>
+          <div class="progress-bar-custom mt-1">
+            <div class="progress-bar-fill bg-primary" style="width:${pct}%"></div>
+          </div>
+          <small class="text-muted">${r.record_count}件 / ${r.total_quantity}点</small>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+async function loadWeeklyChart() {
+  const weeks = document.getElementById('weeksSelect').value;
+  const res = await fetch(`/api/staff-weekly-sales?top=10&weeks=${weeks}`);
+  const data = await res.json();
+
+  const ctx = document.getElementById('weeklyChart').getContext('2d');
+  if (weeklyChart) weeklyChart.destroy();
+  weeklyChart = new Chart(ctx, {
+    type: 'line',
+    data: { labels: data.labels, datasets: data.datasets },
+    options: {
+      responsive: true,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { position: 'bottom', labels: { font: { size: 11 }, boxWidth: 12 } },
+        tooltip: {
+          callbacks: {
+            label: ctx => ` ${ctx.dataset.label}: ¥${ctx.raw.toLocaleString()}`
+          }
+        }
+      },
+      scales: {
+        y: { ticks: { callback: v => '¥' + v.toLocaleString() } }
+      }
+    }
+  });
+}
+
+async function loadAlerts() {
+  const res = await fetch('/api/staff-alerts');
+  const data = await res.json();
+  const el = document.getElementById('alertList');
+
+  if (!data.alerts || data.alerts.length === 0) {
+    el.innerHTML = '<p class="text-success py-2 mb-0"><i class="bi bi-check-circle me-1"></i>アラートなし（全員正常範囲）</p>';
+    return;
+  }
+
+  el.innerHTML = `
+    <p class="text-muted small mb-2">${data.last_month} → ${data.this_month}（日割り予測）</p>
+    <div class="table-responsive">
+    <table class="table table-sm table-hover mb-0">
+      <thead class="table-light"><tr>
+        <th>スタッフ名</th><th class="text-end">先月実績</th>
+        <th class="text-end">今月実績</th><th class="text-end">今月予測</th>
+        <th class="text-end">先月比</th>
+      </tr></thead>
+      <tbody>
+      ${data.alerts.map(a => `
+        <tr class="table-${a.severity === 'danger' ? 'danger' : 'warning'} bg-opacity-25">
+          <td><strong>${a.staff_name}</strong></td>
+          <td class="text-end">¥${a.last_amount.toLocaleString()}</td>
+          <td class="text-end">¥${a.this_amount.toLocaleString()}</td>
+          <td class="text-end">¥${a.projected.toLocaleString()}</td>
+          <td class="text-end fw-bold text-${a.severity}">${a.change_pct}%</td>
+        </tr>`).join('')}
+      </tbody>
+    </table></div>`;
+}
+
+async function loadStaffSelect() {
+  const res = await fetch('/api/staff');
+  const data = await res.json();
+  const sel = document.getElementById('aiStaffSelect');
+  data.forEach(s => {
+    const opt = document.createElement('option');
+    opt.value = s.name;
+    opt.textContent = s.name;
+    sel.appendChild(opt);
+  });
+}
+
+async function runAIEval() {
+  const staffName = document.getElementById('aiStaffSelect').value;
+  const el = document.getElementById('aiResult');
+  el.innerHTML = '<div class="text-center py-3"><div class="spinner-border spinner-border-sm text-primary"></div> AI分析中...</div>';
+
+  try {
+    const res = await fetch('/api/ai/staff-evaluation', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ staff_name: staffName || null, year_month: currentYearMonth })
+    });
+    const d = await res.json();
+
+    if (d.error) { el.innerHTML = `<p class="text-danger">${d.error}</p>`; return; }
+
+    const scoreColor = d.score >= 7 ? 'success' : d.score >= 4 ? 'warning' : 'danger';
+    const changePct = d.change_pct !== null ? `${d.change_pct > 0 ? '+' : ''}${d.change_pct}%` : '-';
+    const changeColor = d.change_pct === null ? 'secondary' : d.change_pct >= 0 ? 'success' : 'danger';
+
+    el.innerHTML = `
+      <div class="d-flex justify-content-between align-items-start mb-2">
+        <div>
+          <div class="fw-bold">${d.target}</div>
+          <small class="text-muted">今月 ¥${d.this_amount.toLocaleString()} / 先月 ¥${d.last_amount.toLocaleString()}
+            <span class="text-${changeColor} fw-bold">(${changePct})</span></small>
+          ${d.cached ? '<span class="badge bg-secondary ms-1 small">キャッシュ</span>' : ''}
+        </div>
+        <div class="text-center">
+          <div class="fs-3 fw-bold text-${scoreColor}">${d.score}</div>
+          <small class="text-muted">/ 10</small>
+        </div>
+      </div>
+      <p class="small mb-2">${d.overall_comment}</p>
+      ${d.strengths.length ? `<div class="mb-2"><strong class="text-success small"><i class="bi bi-check-circle me-1"></i>強み</strong><ul class="mb-0 ps-3">${d.strengths.map(s=>`<li class="small">${s}</li>`).join('')}</ul></div>` : ''}
+      ${d.concerns.length ? `<div class="mb-2"><strong class="text-danger small"><i class="bi bi-exclamation-circle me-1"></i>懸念点</strong><ul class="mb-0 ps-3">${d.concerns.map(s=>`<li class="small">${s}</li>`).join('')}</ul></div>` : ''}
+      ${d.recommendations.length ? `<div><strong class="text-primary small"><i class="bi bi-lightbulb me-1"></i>提案</strong><ul class="mb-0 ps-3">${d.recommendations.map(s=>`<li class="small">${s}</li>`).join('')}</ul></div>` : ''}
+    `;
+  } catch(e) {
+    el.innerHTML = `<p class="text-danger small">${e.message}</p>`;
+  }
+}
+
+// 初期化
+currentYearMonth = getCurrentYearMonth();
+const [y, m] = currentYearMonth.split('-').map(Number);
+document.getElementById('currentMonthLabel').textContent = `${y}年${m}月`;
+loadRanking();
+loadWeeklyChart();
+loadAlerts();
+loadStaffSelect();
+</script>
+{% endblock %}
