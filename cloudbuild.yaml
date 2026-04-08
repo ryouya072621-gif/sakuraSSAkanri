@@ -20,7 +20,6 @@ steps:
       - '--allow-unauthenticated'
       - '--memory=512Mi'
       - '--timeout=300'
-      - '--set-secrets=ANTHROPIC_API_KEY=anthropic-api-key:latest'
 
 options:
   logging: CLOUD_LOGGING_ONLY
