@@ -3,6 +3,7 @@
 let deptCatChart = null;
 let deptStaffChart = null;
 let deptTrendChart = null;
+let deptWorkTypeChart = null;
 let currentDept = null;
 let currentData = null;
 
@@ -483,6 +484,10 @@ function renderGroupedBarChart(canvasId, data, labelKey) {
         deptStaffChart.destroy();
         deptStaffChart = null;
     }
+    if (canvasId === 'deptWorkTypeCanvas' && deptWorkTypeChart) {
+        deptWorkTypeChart.destroy();
+        deptWorkTypeChart = null;
+    }
 
     // 上位15件に制限（見やすさのため）
     const sliced = data.slice(0, 15);
@@ -542,6 +547,7 @@ function renderGroupedBarChart(canvasId, data, labelKey) {
 
     if (canvasId === 'deptCatCanvas') deptCatChart = chart;
     if (canvasId === 'deptStaffCanvas') deptStaffChart = chart;
+    if (canvasId === 'deptWorkTypeCanvas') deptWorkTypeChart = chart;
 }
 
 // ============================================
