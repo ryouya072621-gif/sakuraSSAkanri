@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 from flask import Blueprint, jsonify, request, current_app
-from sqlalchemy import func, distinct
+from sqlalchemy import func, distinct, text
 from app import db
 from app.models import WorkRecord, CategoryMapping, DisplayCategory, AppSetting, WorkProjectMapping, STANDARD_TASK_TYPES, WorkTypeClassification, WORK_TYPE_CHOICES
 from app.services.task_grouper import group_ranking_by_task_group, get_unit_type, get_unit_suffix, get_sub_category
@@ -1130,7 +1130,7 @@ def _month_format_expr():
     """PostgreSQL/SQLite両対応の月フォーマット式"""
     is_pg = str(db.engine.url).startswith('postgresql')
     if is_pg:
-        return func.to_char(WorkRecord.work_date, 'YYYY-MM')
+        return func.to_char(WorkRecord.work_date, text("'YYYY-MM'"))
     else:
         return func.strftime('%Y-%m', WorkRecord.work_date)
 
@@ -1389,13 +1389,13 @@ def get_department_month_comparison():
     # 利用可能な月を取得
     is_pg = str(db.engine.url).startswith('postgresql')
     if is_pg:
-        month_expr = func.to_char(WorkRecord.work_date, 'YYYY-MM')
+        month_expr = func.to_char(WorkRecord.work_date, text("'YYYY-MM'"))
     else:
         month_expr = func.strftime('%Y-%m', WorkRecord.work_date)
 
     month_rows = db.session.query(
         month_expr.label('ym')
-    ).distinct().order_by(month_expr.desc()).all()
+    ).distinct().order_by(text('ym DESC')).all()
     available_months = [r.ym for r in month_rows if r.ym]
 
     # 未指定時は最新2ヶ月を自動選択
@@ -1531,10 +1531,10 @@ def get_department_month_detail():
     if not base_month or not compare_month:
         is_pg = str(db.engine.url).startswith('postgresql')
         if is_pg:
-            month_expr = func.to_char(WorkRecord.work_date, 'YYYY-MM')
+            month_expr = func.to_char(WorkRecord.work_date, text("'YYYY-MM'"))
         else:
             month_expr = func.strftime('%Y-%m', WorkRecord.work_date)
-        month_rows = db.session.query(month_expr.label('ym')).distinct().order_by(month_expr.desc()).all()
+        month_rows = db.session.query(month_expr.label('ym')).distinct().order_by(text('ym DESC')).all()
         months = [r.ym for r in month_rows if r.ym]
         if not compare_month and len(months) >= 1:
             compare_month = months[0]
