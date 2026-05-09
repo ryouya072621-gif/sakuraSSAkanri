@@ -1,0 +1,2290 @@
+{
+  "summary": {
+    "total_hours": 18685.0,
+    "total_count_excluded": 15175.0,
+    "dept_count": 18
+  },
+  "departments": {
+    "訪問事務": {
+      "total_hours": 5647.0,
+      "total_count": 7616.0,
+      "top_hours": [
+        {
+          "work_name": "Wチェック業務（封入）",
+          "qty": 470.0,
+          "work_type": "定型処理",
+          "staff": 3
+        },
+        {
+          "work_name": "入力業務",
+          "qty": 425.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "その他業務(居宅文書入力確認・未入力リスト作成)",
+          "qty": 360.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "生保登録数【円／件数】",
+          "qty": 353.0,
+          "work_type": "定型処理",
+          "staff": 4
+        },
+        {
+          "work_name": "同意書／対診／意見書（受領書）郵送数／同意書/対診返送確認数",
+          "qty": 285.0,
+          "work_type": "定型処理",
+          "staff": 13
+        },
+        {
+          "work_name": "封入",
+          "qty": 282.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "その他業務(SMBC引き落とし確認・5G入金処理・請求書発行・ダブルチェック)",
+          "qty": 240.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "居宅文書FAX（FAX送信・お手渡し準備）【事業所】",
+          "qty": 208.0,
+          "work_type": "定型処理",
+          "staff": 4
+        },
+        {
+          "work_name": "請求",
+          "qty": 198.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "電話",
+          "qty": 142.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "新患登録・新保険作成  ※途中入力NG",
+          "qty": 141.0,
+          "work_type": "定型処理",
+          "staff": 11
+        },
+        {
+          "work_name": "その他業務(キッズイベントMTG)",
+          "qty": 120.0,
+          "work_type": "連絡・調整",
+          "staff": 1
+        },
+        {
+          "work_name": "その他業務(請求書発行)",
+          "qty": 120.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "終了・中断処理【1件】",
+          "qty": 99.0,
+          "work_type": "定型処理",
+          "staff": 6
+        },
+        {
+          "work_name": "庶務業務（デントネット追加）",
+          "qty": 89.0,
+          "work_type": "改善・企画",
+          "staff": 1
+        }
+      ],
+      "top_counts": [
+        {
+          "work_name": "DH居宅／訪衛指／歯在管印刷【枚数】",
+          "qty": 1762.0,
+          "work_type": "定型処理",
+          "staff": 9
+        },
+        {
+          "work_name": "封入業務【枚数】",
+          "qty": 1547.0,
+          "work_type": "定型処理",
+          "staff": 11
+        },
+        {
+          "work_name": "電話対応/メール対応（件数）",
+          "qty": 1216.0,
+          "work_type": "判断・対応",
+          "staff": 14
+        },
+        {
+          "work_name": "DHレセチェック【円／件】",
+          "qty": 1108.0,
+          "work_type": "定型処理",
+          "staff": 8
+        },
+        {
+          "work_name": "居宅文書FAX（居宅印刷）【枚数】",
+          "qty": 455.0,
+          "work_type": "定型処理",
+          "staff": 6
+        },
+        {
+          "work_name": "Drレセチェック（2回目wチェック含む）【円／件】",
+          "qty": 442.0,
+          "work_type": "定型処理",
+          "staff": 6
+        },
+        {
+          "work_name": "カルテ入力チェック",
+          "qty": 321.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "口腔衛生管理加算メール（人数）",
+          "qty": 233.0,
+          "work_type": "判断・対応",
+          "staff": 5
+        },
+        {
+          "work_name": "Wチェック業務（1号登録　※期限更新は除く【件数】）",
+          "qty": 113.0,
+          "work_type": "定型処理",
+          "staff": 4
+        },
+        {
+          "work_name": "エラーチェック",
+          "qty": 75.0,
+          "work_type": "定型処理",
+          "staff": 1
+        }
+      ]
+    },
+    "庶務部": {
+      "total_hours": 2224.0,
+      "total_count": 296.0,
+      "top_hours": [
+        {
+          "work_name": "回収/納品",
+          "qty": 248.0,
+          "work_type": "定型処理",
+          "staff": 2
+        },
+        {
+          "work_name": "書類振り分け",
+          "qty": 234.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "拠点のトラブル対応（チャット）",
+          "qty": 216.0,
+          "work_type": "判断・対応",
+          "staff": 3
+        },
+        {
+          "work_name": "電話対応",
+          "qty": 148.0,
+          "work_type": "判断・対応",
+          "staff": 4
+        },
+        {
+          "work_name": "発注（承認ボタンを押す）",
+          "qty": 102.0,
+          "work_type": "判断・対応",
+          "staff": 2
+        },
+        {
+          "work_name": "キッズイベント準備",
+          "qty": 90.0,
+          "work_type": "判断・対応",
+          "staff": 2
+        },
+        {
+          "work_name": "託児集計シート入力（日）",
+          "qty": 80.0,
+          "work_type": "定型処理",
+          "staff": 4
+        },
+        {
+          "work_name": "拠点のトラブル対応（電話）",
+          "qty": 77.0,
+          "work_type": "判断・対応",
+          "staff": 2
+        },
+        {
+          "work_name": "キッズルーム管理(片付け・清掃・補充)",
+          "qty": 72.0,
+          "work_type": "判断・対応",
+          "staff": 4
+        },
+        {
+          "work_name": "両替金管理",
+          "qty": 56.0,
+          "work_type": "判断・対応",
+          "staff": 3
+        },
+        {
+          "work_name": "設備改善対応・業者依頼",
+          "qty": 52.0,
+          "work_type": "改善・企画",
+          "staff": 2
+        },
+        {
+          "work_name": "キッズイベント企画",
+          "qty": 51.0,
+          "work_type": "改善・企画",
+          "staff": 2
+        },
+        {
+          "work_name": "他部署業務ヘルプ",
+          "qty": 51.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "スケジュール調整",
+          "qty": 49.0,
+          "work_type": "判断・対応",
+          "staff": 2
+        },
+        {
+          "work_name": "社用車管理",
+          "qty": 47.0,
+          "work_type": "判断・対応",
+          "staff": 3
+        }
+      ],
+      "top_counts": [
+        {
+          "work_name": "技工物ノート入力",
+          "qty": 175.0,
+          "work_type": "定型処理",
+          "staff": 2
+        },
+        {
+          "work_name": "キッズクラブリスト入力",
+          "qty": 53.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "専務確認後発注",
+          "qty": 19.0,
+          "work_type": "定型処理",
+          "staff": 2
+        },
+        {
+          "work_name": "庶務判断で発注",
+          "qty": 12.0,
+          "work_type": "判断・対応",
+          "staff": 2
+        },
+        {
+          "work_name": "請求書作成",
+          "qty": 10.0,
+          "work_type": "定型処理",
+          "staff": 2
+        },
+        {
+          "work_name": "ぬりえ見本作成",
+          "qty": 3.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "備品確認・発注",
+          "qty": 3.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "月次報告書入力",
+          "qty": 3.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "アイテロカレンダー作成",
+          "qty": 2.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "カレンダー作成",
+          "qty": 2.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        }
+      ]
+    },
+    "関東事務部": {
+      "total_hours": 2199.0,
+      "total_count": 5247.0,
+      "top_hours": [
+        {
+          "work_name": "請求書・明細・封筒印刷・封入作業",
+          "qty": 288.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "スカウト送信",
+          "qty": 233.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "その他の業務(拠点のガス点検対応、ササキ対応、請求金額入力チェック、領収書確認）",
+          "qty": 200.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "その他の業務(各医院5GをPCに入れる、イベントMTG）",
+          "qty": 180.0,
+          "work_type": "連絡・調整",
+          "staff": 1
+        },
+        {
+          "work_name": "研修の為のアシスト（現場）",
+          "qty": 152.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "メール対応",
+          "qty": 107.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "現場からの問い合わせ対応",
+          "qty": 80.0,
+          "work_type": "判断・対応",
+          "staff": 3
+        },
+        {
+          "work_name": "その他業務（今年中の施設予約枠切り、保険証の有効期限切れの患者予約枠コメント入力）",
+          "qty": 70.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "その他の業務(ササキ対応、デンタルシステムズ対応）",
+          "qty": 60.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "電話対応",
+          "qty": 52.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "問い合わせ対応",
+          "qty": 44.0,
+          "work_type": "判断・対応",
+          "staff": 2
+        },
+        {
+          "work_name": "採用対応",
+          "qty": 42.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "その他の業務(郵便局対応、デンタルシステムズ対応）",
+          "qty": 40.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "その他業務(SMBC口座登録、引き落とし確認）",
+          "qty": 40.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "チャット対応",
+          "qty": 37.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        }
+      ],
+      "top_counts": [
+        {
+          "work_name": "エラーチェック",
+          "qty": 2442.0,
+          "work_type": "定型処理",
+          "staff": 4
+        },
+        {
+          "work_name": "カルテチェック",
+          "qty": 1356.0,
+          "work_type": "定型処理",
+          "staff": 2
+        },
+        {
+          "work_name": "カルテ入力チェック",
+          "qty": 951.0,
+          "work_type": "定型処理",
+          "staff": 3
+        },
+        {
+          "work_name": "返戻処理",
+          "qty": 101.0,
+          "work_type": "判断・対応",
+          "staff": 2
+        },
+        {
+          "work_name": "保険証二重チェック",
+          "qty": 84.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "保険証チェック",
+          "qty": 65.0,
+          "work_type": "定型処理",
+          "staff": 2
+        },
+        {
+          "work_name": "修正依頼チェック",
+          "qty": 40.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "訂正確認",
+          "qty": 37.0,
+          "work_type": "定型処理",
+          "staff": 2
+        },
+        {
+          "work_name": "指示書・納品書確認",
+          "qty": 33.0,
+          "work_type": "定型処理",
+          "staff": 2
+        },
+        {
+          "work_name": "雑務処理",
+          "qty": 27.0,
+          "work_type": "判断・対応",
+          "staff": 3
+        }
+      ]
+    },
+    "人材開発": {
+      "total_hours": 2156.0,
+      "total_count": 61.0,
+      "top_hours": [
+        {
+          "work_name": "一次受付",
+          "qty": 382.0,
+          "work_type": "判断・対応",
+          "staff": 2
+        },
+        {
+          "work_name": "一次受付,チャットメッセージ.ジョブメドレー.メール",
+          "qty": 380.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "メールの対応",
+          "qty": 140.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "ワンキャリアスカウト送信",
+          "qty": 132.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "スカウト送信",
+          "qty": 100.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "engage、ジョブメドレー　スカウト",
+          "qty": 97.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "ジョブメドレー/一次受付/紹介会社FAX/人材開発室メールの処理対応",
+          "qty": 86.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "人材開発室チャットの処理対応",
+          "qty": 63.0,
+          "work_type": "改善・企画",
+          "staff": 1
+        },
+        {
+          "work_name": "ジョブメドレー/一次受付/ベトナムLINE/人材開発室メールの処理対応",
+          "qty": 40.0,
+          "work_type": "改善・企画",
+          "staff": 1
+        },
+        {
+          "work_name": "チャット・電話対応",
+          "qty": 38.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "新卒面談",
+          "qty": 36.0,
+          "work_type": "連絡・調整",
+          "staff": 1
+        },
+        {
+          "work_name": "採用媒体対応",
+          "qty": 28.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "金沢さくら医院 婦人科Dr",
+          "qty": 24.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "チャット対応",
+          "qty": 22.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "メール対応",
+          "qty": 21.0,
+          "work_type": "判断・対応",
+          "staff": 2
+        }
+      ],
+      "top_counts": [
+        {
+          "work_name": "雇用契約書作成",
+          "qty": 6.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "中途向け入職後フォロー資料作成",
+          "qty": 4.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "内定者アルバイトパワポ作成",
+          "qty": 4.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "SmartHR入力",
+          "qty": 3.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "ハタラクエールエントリーシート作成",
+          "qty": 2.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "引継ぎ・マニュアル作成",
+          "qty": 2.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "新入社員　SmartHR登録内容の確認",
+          "qty": 2.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "新卒DR/DHsmartHR登録",
+          "qty": 2.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "新卒SmartHR不備チェック",
+          "qty": 2.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "新卒入職手続き登録・書類チェック",
+          "qty": 2.0,
+          "work_type": "定型処理",
+          "staff": 1
+        }
+      ]
+    },
+    "経理部": {
+      "total_hours": 1654.0,
+      "total_count": 1119.0,
+      "top_hours": [
+        {
+          "work_name": "窓口日計表",
+          "qty": 337.0,
+          "work_type": "定型処理",
+          "staff": 2
+        },
+        {
+          "work_name": "入金",
+          "qty": 330.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "コンカー",
+          "qty": 142.0,
+          "work_type": "定型処理",
+          "staff": 3
+        },
+        {
+          "work_name": "問い合わせ対応",
+          "qty": 138.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "クレジット照合",
+          "qty": 80.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "個人経費精算",
+          "qty": 75.0,
+          "work_type": "定型処理",
+          "staff": 2
+        },
+        {
+          "work_name": "問い合わせ対応(電話)",
+          "qty": 68.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "その他業務",
+          "qty": 51.0,
+          "work_type": "定型処理",
+          "staff": 3
+        },
+        {
+          "work_name": "請求書発行",
+          "qty": 45.0,
+          "work_type": "定型処理",
+          "staff": 3
+        },
+        {
+          "work_name": "材料費",
+          "qty": 43.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "入金管理",
+          "qty": 34.0,
+          "work_type": "定型処理",
+          "staff": 2
+        },
+        {
+          "work_name": "資金繰り表",
+          "qty": 34.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "ダイレクト納付",
+          "qty": 31.0,
+          "work_type": "定型処理",
+          "staff": 2
+        },
+        {
+          "work_name": "支払管理",
+          "qty": 25.0,
+          "work_type": "定型処理",
+          "staff": 2
+        },
+        {
+          "work_name": "ドクター経費",
+          "qty": 24.0,
+          "work_type": "定型処理",
+          "staff": 2
+        }
+      ],
+      "top_counts": [
+        {
+          "work_name": "入金確認",
+          "qty": 376.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "窓口日計表入力",
+          "qty": 288.0,
+          "work_type": "定型処理",
+          "staff": 2
+        },
+        {
+          "work_name": "振込データ作成",
+          "qty": 225.0,
+          "work_type": "定型処理",
+          "staff": 2
+        },
+        {
+          "work_name": "個別振込処理",
+          "qty": 63.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "法定調書作成",
+          "qty": 30.0,
+          "work_type": "定型処理",
+          "staff": 2
+        },
+        {
+          "work_name": "応援交通費確認",
+          "qty": 26.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "クレジット登録",
+          "qty": 18.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "その他資料作成",
+          "qty": 14.0,
+          "work_type": "定型処理",
+          "staff": 2
+        },
+        {
+          "work_name": "グランド歯科TKC入力",
+          "qty": 13.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "仕訳入力",
+          "qty": 11.0,
+          "work_type": "定型処理",
+          "staff": 1
+        }
+      ]
+    },
+    "CS部": {
+      "total_hours": 1135.0,
+      "total_count": 211.0,
+      "top_hours": [
+        {
+          "work_name": "口コミ返信",
+          "qty": 239.0,
+          "work_type": "判断・対応",
+          "staff": 5
+        },
+        {
+          "work_name": "事務時間",
+          "qty": 202.0,
+          "work_type": "判断・対応",
+          "staff": 5
+        },
+        {
+          "work_name": "個人別データ集計・回収 個人別自費項目データ集計・回収\"\"",
+          "qty": 92.0,
+          "work_type": "定型処理",
+          "staff": 3
+        },
+        {
+          "work_name": "EPARK空き枠管理",
+          "qty": 75.0,
+          "work_type": "判断・対応",
+          "staff": 5
+        },
+        {
+          "work_name": "LINE予約変更対応(医院確認も含む)",
+          "qty": 64.0,
+          "work_type": "定型処理",
+          "staff": 5
+        },
+        {
+          "work_name": "個人別データ集計・回収 個人別自費項目データ集計・回収",
+          "qty": 51.0,
+          "work_type": "定型処理",
+          "staff": 2
+        },
+        {
+          "work_name": "医院対応全般(英訳業務も含む)",
+          "qty": 37.0,
+          "work_type": "判断・対応",
+          "staff": 3
+        },
+        {
+          "work_name": "矯正相談日報作成・空き枠前日予約報告",
+          "qty": 37.0,
+          "work_type": "判断・対応",
+          "staff": 5
+        },
+        {
+          "work_name": "E-PARK予約受付(WEB/電話)",
+          "qty": 34.0,
+          "work_type": "判断・対応",
+          "staff": 4
+        },
+        {
+          "work_name": "売上入力・納品書発行",
+          "qty": 34.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "他部署対応全般",
+          "qty": 27.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "LINE矯正相談受付",
+          "qty": 20.0,
+          "work_type": "判断・対応",
+          "staff": 4
+        },
+        {
+          "work_name": "IP売上・分割払い集計",
+          "qty": 16.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "その他一般予約受付",
+          "qty": 16.0,
+          "work_type": "判断・対応",
+          "staff": 4
+        },
+        {
+          "work_name": "口コミ返信(低評価)",
+          "qty": 16.0,
+          "work_type": "判断・対応",
+          "staff": 5
+        }
+      ],
+      "top_counts": [
+        {
+          "work_name": "口コミ日報作成",
+          "qty": 24.0,
+          "work_type": "判断・対応",
+          "staff": 5
+        },
+        {
+          "work_name": "DH事務時間(DH点数を用いて)カウント",
+          "qty": 23.0,
+          "work_type": "判断・対応",
+          "staff": 2
+        },
+        {
+          "work_name": "事務時間カウント",
+          "qty": 23.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "DH予約率報告資料作成",
+          "qty": 20.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "DH予約率産出・作成",
+          "qty": 18.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "不備確認",
+          "qty": 15.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "Dr生産性算出・チェック",
+          "qty": 10.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "DH点数反映・不備確認",
+          "qty": 7.0,
+          "work_type": "定型処理",
+          "staff": 2
+        },
+        {
+          "work_name": "DH生産性算出・チェック",
+          "qty": 7.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "IPオペダブルチェック",
+          "qty": 7.0,
+          "work_type": "定型処理",
+          "staff": 1
+        }
+      ]
+    },
+    "広報部": {
+      "total_hours": 782.0,
+      "total_count": 6.0,
+      "top_hours": [
+        {
+          "work_name": "②情報更新・修正/件",
+          "qty": 23.0,
+          "work_type": "改善・企画",
+          "staff": 1
+        },
+        {
+          "work_name": "①MTG・打合せ（内部）/時間",
+          "qty": 17.0,
+          "work_type": "連絡・調整",
+          "staff": 3
+        },
+        {
+          "work_name": "③ラビットLINE/時間",
+          "qty": 17.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "①面談/時間",
+          "qty": 16.0,
+          "work_type": "連絡・調整",
+          "staff": 6
+        },
+        {
+          "work_name": "⑤運用管理（改善施策）/時間",
+          "qty": 11.0,
+          "work_type": "改善・企画",
+          "staff": 2
+        },
+        {
+          "work_name": "⑩求人修正、訪問HP修正/件",
+          "qty": 11.0,
+          "work_type": "改善・企画",
+          "staff": 1
+        },
+        {
+          "work_name": "⑩キッズイベントバナー設置/件",
+          "qty": 10.0,
+          "work_type": "改善・企画",
+          "staff": 1
+        },
+        {
+          "work_name": "⑩金沢さくら医院、ヒロ　修正/件",
+          "qty": 10.0,
+          "work_type": "改善・企画",
+          "staff": 1
+        },
+        {
+          "work_name": "⑧口コミ自動生成サイト_その他運用/予約サイトなど/時間",
+          "qty": 9.0,
+          "work_type": "改善・企画",
+          "staff": 1
+        },
+        {
+          "work_name": "①他部署依頼/時間　イベント参加",
+          "qty": 8.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "③ラビット投稿作成/件（投稿）",
+          "qty": 8.0,
+          "work_type": "改善・企画",
+          "staff": 1
+        },
+        {
+          "work_name": "⑥イベント参加/時間",
+          "qty": 8.0,
+          "work_type": "改善・企画",
+          "staff": 1
+        },
+        {
+          "work_name": "⑧小児LP_その他運用/予約サイトなど/時間",
+          "qty": 8.0,
+          "work_type": "改善・企画",
+          "staff": 1
+        },
+        {
+          "work_name": "⑨求人HP 情報更新/件",
+          "qty": 8.0,
+          "work_type": "改善・企画",
+          "staff": 1
+        },
+        {
+          "work_name": "①GBP運用管理/時間",
+          "qty": 7.0,
+          "work_type": "改善・企画",
+          "staff": 2
+        }
+      ],
+      "top_counts": [
+        {
+          "work_name": "⑪SEO改善業務/時間　修正チェック",
+          "qty": 2.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "④数値確認・効果測定・改善/時間　数値確認",
+          "qty": 1.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "⑥広報費・枠集計/分析/時間　シート入力",
+          "qty": 1.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "⑨Fire stick手配依頼・Amazonアカウント整理/時間",
+          "qty": 1.0,
+          "work_type": "改善・企画",
+          "staff": 1
+        },
+        {
+          "work_name": "⑪SEO改善業務/時間　数値チェック",
+          "qty": 1.0,
+          "work_type": "定型処理",
+          "staff": 1
+        }
+      ]
+    },
+    "01経営管理課": {
+      "total_hours": 645.0,
+      "total_count": 383.0,
+      "top_hours": [
+        {
+          "work_name": "医療法人（いりなか、池下、緑専門、金沢DR、流山ありす）",
+          "qty": 108.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "医療法人（ありす、さくら時給、金沢歯科、流山DR、さくらDR、日進、浄心）",
+          "qty": 78.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "医療法人（きらり、クローバー、長久手）",
+          "qty": 38.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "個人",
+          "qty": 37.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "株式会社ヒーロ請求書",
+          "qty": 31.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "データ作成（依頼物・従業員データ）",
+          "qty": 28.0,
+          "work_type": "改善・企画",
+          "staff": 1
+        },
+        {
+          "work_name": "給与計算",
+          "qty": 27.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "勤務カード準備",
+          "qty": 26.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "ＭＳ法人給与明細確認・アップロード・公開",
+          "qty": 24.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "ＭＳ法人（トリプルウィン、カーリー、エディプラス、SOKUTA、ソーコー、白、ヒーロ、デンタル、コンサル）",
+          "qty": 18.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "給与明細・源泉徴収票（浩蘭会）",
+          "qty": 16.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "勤務・給与相談",
+          "qty": 15.0,
+          "work_type": "連絡・調整",
+          "staff": 1
+        },
+        {
+          "work_name": "給与計算・明細入力（仁鈴会）",
+          "qty": 14.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "給与明細（仁鈴会）",
+          "qty": 13.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "保険医異動届（愛知分）",
+          "qty": 9.0,
+          "work_type": "定型処理",
+          "staff": 1
+        }
+      ],
+      "top_counts": [
+        {
+          "work_name": "医療法人確認",
+          "qty": 300.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "ＭＳ法人給与明細入力",
+          "qty": 24.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "MA拠点授業員の登録",
+          "qty": 9.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "取引先への提出書類作成",
+          "qty": 9.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "給与確認",
+          "qty": 8.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "データ入力",
+          "qty": 7.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "保険医異動書類の作成",
+          "qty": 6.0,
+          "work_type": "改善・企画",
+          "staff": 1
+        },
+        {
+          "work_name": "セルズ登録",
+          "qty": 5.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "smartHRの登録",
+          "qty": 4.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "確認",
+          "qty": 4.0,
+          "work_type": "定型処理",
+          "staff": 1
+        }
+      ]
+    },
+    "営業部": {
+      "total_hours": 631.0,
+      "total_count": 1.0,
+      "top_hours": [
+        {
+          "work_name": "事務作業",
+          "qty": 114.0,
+          "work_type": "判断・対応",
+          "staff": 5
+        },
+        {
+          "work_name": "飛び込み",
+          "qty": 81.0,
+          "work_type": "判断・対応",
+          "staff": 3
+        },
+        {
+          "work_name": "飛び込み数（面会）",
+          "qty": 68.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "飛び込み営業（居宅）",
+          "qty": 61.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "電話対応",
+          "qty": 56.0,
+          "work_type": "判断・対応",
+          "staff": 2
+        },
+        {
+          "work_name": "飛び込み数（不在）",
+          "qty": 23.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "TEL対応",
+          "qty": 21.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "研修",
+          "qty": 21.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "診療同行・保険証回収　",
+          "qty": 18.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "MTG/30分",
+          "qty": 13.0,
+          "work_type": "連絡・調整",
+          "staff": 1
+        },
+        {
+          "work_name": "飛び込み(形くん同行）",
+          "qty": 10.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "飛び込み・居宅営業（居宅）",
+          "qty": 10.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "AIMTG",
+          "qty": 9.0,
+          "work_type": "連絡・調整",
+          "staff": 1
+        },
+        {
+          "work_name": "事務作業(資料作成、情報収集、MTG）",
+          "qty": 8.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "事務作業（形くん教育）",
+          "qty": 8.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        }
+      ],
+      "top_counts": [
+        {
+          "work_name": "営業資料作成",
+          "qty": 1.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        }
+      ]
+    },
+    "品質管理部": {
+      "total_hours": 394.0,
+      "total_count": 127.0,
+      "top_hours": [
+        {
+          "work_name": "電話・チャット対応",
+          "qty": 128.0,
+          "work_type": "連絡・調整",
+          "staff": 1
+        },
+        {
+          "work_name": "面談 一般",
+          "qty": 91.0,
+          "work_type": "連絡・調整",
+          "staff": 1
+        },
+        {
+          "work_name": "面談同席",
+          "qty": 37.0,
+          "work_type": "連絡・調整",
+          "staff": 1
+        },
+        {
+          "work_name": "電話・チャット・メール対応",
+          "qty": 27.0,
+          "work_type": "連絡・調整",
+          "staff": 1
+        },
+        {
+          "work_name": "人員調整シート記入",
+          "qty": 24.0,
+          "work_type": "連絡・調整",
+          "staff": 2
+        },
+        {
+          "work_name": "SmartHR記入",
+          "qty": 18.0,
+          "work_type": "連絡・調整",
+          "staff": 1
+        },
+        {
+          "work_name": "面談 主任",
+          "qty": 10.0,
+          "work_type": "連絡・調整",
+          "staff": 1
+        },
+        {
+          "work_name": "面談調整",
+          "qty": 10.0,
+          "work_type": "連絡・調整",
+          "staff": 1
+        },
+        {
+          "work_name": "他部署MTG",
+          "qty": 9.0,
+          "work_type": "連絡・調整",
+          "staff": 1
+        },
+        {
+          "work_name": "面談",
+          "qty": 7.0,
+          "work_type": "連絡・調整",
+          "staff": 1
+        },
+        {
+          "work_name": "部署MTG",
+          "qty": 5.0,
+          "work_type": "連絡・調整",
+          "staff": 2
+        },
+        {
+          "work_name": "PCセットアップ",
+          "qty": 4.0,
+          "work_type": "連絡・調整",
+          "staff": 1
+        },
+        {
+          "work_name": "まるごと会計",
+          "qty": 3.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "動画編集・録画",
+          "qty": 3.0,
+          "work_type": "連絡・調整",
+          "staff": 1
+        },
+        {
+          "work_name": "拠点評価資料",
+          "qty": 3.0,
+          "work_type": "連絡・調整",
+          "staff": 1
+        }
+      ],
+      "top_counts": [
+        {
+          "work_name": "資料作成",
+          "qty": 76.0,
+          "work_type": "判断・対応",
+          "staff": 2
+        },
+        {
+          "work_name": "岩田さん：資料作成",
+          "qty": 22.0,
+          "work_type": "連絡・調整",
+          "staff": 1
+        },
+        {
+          "work_name": "事業分析課：資料作成",
+          "qty": 13.0,
+          "work_type": "連絡・調整",
+          "staff": 1
+        },
+        {
+          "work_name": "Dr.個人表作成",
+          "qty": 6.0,
+          "work_type": "連絡・調整",
+          "staff": 1
+        },
+        {
+          "work_name": "人員調整シート入力",
+          "qty": 4.0,
+          "work_type": "連絡・調整",
+          "staff": 1
+        },
+        {
+          "work_name": "拠点評価資料作成",
+          "qty": 4.0,
+          "work_type": "連絡・調整",
+          "staff": 1
+        },
+        {
+          "work_name": "まるごと会計（窓口収入）入力",
+          "qty": 2.0,
+          "work_type": "連絡・調整",
+          "staff": 1
+        }
+      ]
+    },
+    "教育部": {
+      "total_hours": 272.0,
+      "total_count": 0,
+      "top_hours": [
+        {
+          "work_name": "再診、SPT",
+          "qty": 265.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "入力の見直し（シーラント、小児機能、点数のもれ）",
+          "qty": 2.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "DHとKPI、リコール数について社内報MTG",
+          "qty": 1.0,
+          "work_type": "連絡・調整",
+          "staff": 1
+        },
+        {
+          "work_name": "リコールの指導、アドバイス",
+          "qty": 1.0,
+          "work_type": "改善・企画",
+          "staff": 1
+        },
+        {
+          "work_name": "大森のKPI、リコール数向上について",
+          "qty": 1.0,
+          "work_type": "連絡・調整",
+          "staff": 1
+        },
+        {
+          "work_name": "理事長・平松さん面談",
+          "qty": 1.0,
+          "work_type": "連絡・調整",
+          "staff": 1
+        },
+        {
+          "work_name": "進捗報告",
+          "qty": 1.0,
+          "work_type": "連絡・調整",
+          "staff": 1
+        }
+      ],
+      "top_counts": []
+    },
+    "戦略分析部": {
+      "total_hours": 262.0,
+      "total_count": 48.0,
+      "top_hours": [
+        {
+          "work_name": "問い合わせ対応・連絡",
+          "qty": 17.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "患者ランク月次で集計機能の追加",
+          "qty": 13.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "さくら歯科カルテスキャン",
+          "qty": 8.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "その他MTG",
+          "qty": 8.0,
+          "work_type": "連絡・調整",
+          "staff": 1
+        },
+        {
+          "work_name": "アナリティクス更新・こまかな修正・アップデート",
+          "qty": 8.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "アナリティクス更新・医科修正",
+          "qty": 8.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "中断リスト・リコール数・初診数",
+          "qty": 8.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "データ収集のRPA化　自業務短縮",
+          "qty": 7.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "技工部月報CRMデータ更新",
+          "qty": 7.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "アナリティクス更新",
+          "qty": 6.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "月次更新メンテナンス　LTV・患者ランク",
+          "qty": 6.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "CS課　アポ表抜き取り",
+          "qty": 5.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "Power5GのRPA",
+          "qty": 5.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "アナリティクス更新・バグ修正",
+          "qty": 5.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "アナリティクス月次更新",
+          "qty": 5.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        }
+      ],
+      "top_counts": [
+        {
+          "work_name": "社内報作成",
+          "qty": 12.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "オピックスRPA作成",
+          "qty": 5.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "M&A拠点社内報作成",
+          "qty": 4.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "法人全体生産性作成",
+          "qty": 4.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "CRMエラー出てないかチェック",
+          "qty": 2.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "カルテ課問い合わせGem作成",
+          "qty": 2.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "中断阻止率データ作成",
+          "qty": 2.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "窓口日計表の作成",
+          "qty": 2.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "資料確認",
+          "qty": 2.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "院内技工Excelデータ作成",
+          "qty": 2.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        }
+      ]
+    },
+    "マネージャー": {
+      "total_hours": 249.0,
+      "total_count": 0,
+      "top_hours": [
+        {
+          "work_name": "M&A労務対応mtg、安城訪問資料準備、増淵さんmtg、平松さんmtg、挽地先生mtgなど",
+          "qty": 8.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "日本総合健診医学会大会参加",
+          "qty": 8.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "安城対応、増田院長mtg、増田スタッフ条件面談、増田現地対応、前澤さんmtg、播磨さんmtgなど",
+          "qty": 7.0,
+          "work_type": "連絡・調整",
+          "staff": 1
+        },
+        {
+          "work_name": "管理栄養士",
+          "qty": 7.0,
+          "work_type": "連絡・調整",
+          "staff": 1
+        },
+        {
+          "work_name": "二次検査フォロー医院集計",
+          "qty": 6.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "増田面談　6名",
+          "qty": 6.0,
+          "work_type": "連絡・調整",
+          "staff": 1
+        },
+        {
+          "work_name": "院内事務・発注/スタッフルーム清掃/スタッフ対応/チャット対応/他部署依頼/二村さんフォロー/ドック認定に向けてのスプレッド整理/PCセットアップ/平松さん目標設定MTG",
+          "qty": 6.0,
+          "work_type": "連絡・調整",
+          "staff": 1
+        },
+        {
+          "work_name": "グランド面談　5名",
+          "qty": 5.0,
+          "work_type": "連絡・調整",
+          "staff": 1
+        },
+        {
+          "work_name": "三田スタッフ労務条件説明対応、落合先生mtg、平松さんmtg、前澤さんmtgなど",
+          "qty": 5.0,
+          "work_type": "連絡・調整",
+          "staff": 1
+        },
+        {
+          "work_name": "健診事務業務ヘルプ",
+          "qty": 5.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "安城対応、神谷さんmtg、グランド対応、きた不動産対応、落合先生mtg、拠点長mtg、TC mtg等調整",
+          "qty": 5.0,
+          "work_type": "連絡・調整",
+          "staff": 1
+        },
+        {
+          "work_name": "安城面談　5名",
+          "qty": 5.0,
+          "work_type": "連絡・調整",
+          "staff": 1
+        },
+        {
+          "work_name": "拠点長mtg準備、TC mtg準備、主任mtg準備、落合先生mtg、グランドチェア見積もり対応、神谷さんmtgなど",
+          "qty": 5.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "溝口先生MTG/院内事務・発注/スタッフ対応/チャット対応/他部署依頼/勤務カードチェック/内視鏡スポット枠調整/看護師検査運用について/公文先生電話/業者対応(三輪器械・電算システム)",
+          "qty": 5.0,
+          "work_type": "連絡・調整",
+          "staff": 1
+        },
+        {
+          "work_name": "溝口先生MTG/院内事務・発注/スタッフ対応/チャット対応/業者対応(フクダ電子・三輪器械)/サリバチェック他部署依頼/1月売上予測/二村さんフォロー/溝口先生・中島先生と大腸枠増枠、KPI達成に向けてMTG/主任相談(検査)",
+          "qty": 5.0,
+          "work_type": "連絡・調整",
+          "staff": 1
+        }
+      ],
+      "top_counts": []
+    },
+    "デザインチーム": {
+      "total_hours": 173.0,
+      "total_count": 55.0,
+      "top_hours": [
+        {
+          "work_name": "通常発注3件",
+          "qty": 9.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "1月名駅キッズイベント　イベントお手伝い",
+          "qty": 8.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "イベントお手伝い　キッズイベント参加",
+          "qty": 8.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "通常発注2件",
+          "qty": 6.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "【SNS／画像作成】子育てインスタ「子どものレントゲン 被ばくって大丈夫？」ー初稿制作",
+          "qty": 4.0,
+          "work_type": "改善・企画",
+          "staff": 1
+        },
+        {
+          "work_name": "発注業務",
+          "qty": 4.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "通常発注1件",
+          "qty": 4.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "雑務　メール対応",
+          "qty": 4.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "SSA修正・目標",
+          "qty": 3.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "採用　大卒パンフレット 3p　修正",
+          "qty": 3.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "流山駅看板　ラフ作成/個",
+          "qty": 3.0,
+          "work_type": "改善・企画",
+          "staff": 1
+        },
+        {
+          "work_name": "経理 溝口さん3種 (医療法人ハピネス/スマイル会/仁鈴会)　名刺",
+          "qty": 3.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "2月名駅キッズイベント　バナー",
+          "qty": 2.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "MTG/回",
+          "qty": 2.0,
+          "work_type": "連絡・調整",
+          "staff": 2
+        },
+        {
+          "work_name": "SSA構成のアップデートー仕組み作り",
+          "qty": 2.0,
+          "work_type": "改善・企画",
+          "staff": 1
+        }
+      ],
+      "top_counts": [
+        {
+          "work_name": "通常発注",
+          "qty": 40.0,
+          "work_type": "判断・対応",
+          "staff": 2
+        },
+        {
+          "work_name": "次月報告書作成",
+          "qty": 2.0,
+          "work_type": "改善・企画",
+          "staff": 2
+        },
+        {
+          "work_name": "zoom画像作成",
+          "qty": 1.0,
+          "work_type": "改善・企画",
+          "staff": 1
+        },
+        {
+          "work_name": "【雑務】デザイン課SSA単価設定確認ー内容確認",
+          "qty": 1.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "マグカップ調整+発注",
+          "qty": 1.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "平松さん名刺　作成",
+          "qty": 1.0,
+          "work_type": "改善・企画",
+          "staff": 1
+        },
+        {
+          "work_name": "案出し/時間　はぎしりポスターラフ作成",
+          "qty": 1.0,
+          "work_type": "改善・企画",
+          "staff": 1
+        },
+        {
+          "work_name": "案出し/時間　奨学金ポスターラフ作成",
+          "qty": 1.0,
+          "work_type": "改善・企画",
+          "staff": 1
+        },
+        {
+          "work_name": "横断幕　確認",
+          "qty": 1.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "確認作業　CCS料金確認",
+          "qty": 1.0,
+          "work_type": "定型処理",
+          "staff": 1
+        }
+      ]
+    },
+    "仕事（他）": {
+      "total_hours": 130.0,
+      "total_count": 5.0,
+      "top_hours": [
+        {
+          "work_name": "新規とびこみ",
+          "qty": 42.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "資料作り",
+          "qty": 27.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "アプリ開発",
+          "qty": 23.0,
+          "work_type": "改善・企画",
+          "staff": 1
+        },
+        {
+          "work_name": "MTG",
+          "qty": 10.0,
+          "work_type": "連絡・調整",
+          "staff": 1
+        },
+        {
+          "work_name": "契約書類",
+          "qty": 6.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "勉強会",
+          "qty": 5.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "新人教育",
+          "qty": 5.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "営業資料新規",
+          "qty": 3.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "資料作成(新規営業用)",
+          "qty": 3.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "整理整頓",
+          "qty": 2.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "TELアポ数",
+          "qty": 1.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "スタッフ案件",
+          "qty": 1.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "契約書類(値上げなし)",
+          "qty": 1.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "院内スタッフ打ち合わせ・相談",
+          "qty": 1.0,
+          "work_type": "連絡・調整",
+          "staff": 1
+        }
+      ],
+      "top_counts": [
+        {
+          "work_name": "営業資料作成",
+          "qty": 5.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        }
+      ]
+    },
+    "統括部": {
+      "total_hours": 69.0,
+      "total_count": 0,
+      "top_hours": [
+        {
+          "work_name": "チャット返信",
+          "qty": 42.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "MTG",
+          "qty": 8.0,
+          "work_type": "連絡・調整",
+          "staff": 1
+        },
+        {
+          "work_name": "社外メール返信",
+          "qty": 7.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "調べもの",
+          "qty": 3.0,
+          "work_type": "改善・企画",
+          "staff": 1
+        },
+        {
+          "work_name": "企画提案",
+          "qty": 2.0,
+          "work_type": "改善・企画",
+          "staff": 1
+        },
+        {
+          "work_name": "CS課　業務洗い出しMTG",
+          "qty": 1.0,
+          "work_type": "連絡・調整",
+          "staff": 1
+        },
+        {
+          "work_name": "SSA編集",
+          "qty": 1.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "マーケ部CS課　業務受け渡し",
+          "qty": 1.0,
+          "work_type": "改善・企画",
+          "staff": 1
+        },
+        {
+          "work_name": "中村さん　現状共有MTG",
+          "qty": 1.0,
+          "work_type": "連絡・調整",
+          "staff": 1
+        },
+        {
+          "work_name": "仕組みづくり",
+          "qty": 1.0,
+          "work_type": "改善・企画",
+          "staff": 1
+        },
+        {
+          "work_name": "経理課　評価決めMTG",
+          "qty": 1.0,
+          "work_type": "連絡・調整",
+          "staff": 1
+        },
+        {
+          "work_name": "落合先生MTG きた先生録音案件と教育部テストAI作成　各部門現場からの課題すり合わせ",
+          "qty": 1.0,
+          "work_type": "連絡・調整",
+          "staff": 1
+        }
+      ],
+      "top_counts": []
+    },
+    "理事長案件": {
+      "total_hours": 32.0,
+      "total_count": 0,
+      "top_hours": [
+        {
+          "work_name": "吉川先生、TCカレッジ勉強会、不在する対応調整",
+          "qty": 5.0,
+          "work_type": "判断・対応",
+          "staff": 1
+        },
+        {
+          "work_name": "明井先生mtg、カルテ部mtg、医科mtg、平松さん説明対応、mtg、",
+          "qty": 5.0,
+          "work_type": "連絡・調整",
+          "staff": 1
+        },
+        {
+          "work_name": "理事長mtg、平松さん同行と引き継ぎ、金沢医科歯科mtgコンテンツ詰めなど",
+          "qty": 5.0,
+          "work_type": "連絡・調整",
+          "staff": 1
+        },
+        {
+          "work_name": "理事長mtg、平松さんmtg、組織図改訂など",
+          "qty": 4.0,
+          "work_type": "連絡・調整",
+          "staff": 1
+        },
+        {
+          "work_name": "理事長mtg、平松さん引き継ぎmtg、組織図改訂など",
+          "qty": 4.0,
+          "work_type": "連絡・調整",
+          "staff": 1
+        },
+        {
+          "work_name": "部門サポート部mtg、理事長mtgなど",
+          "qty": 3.0,
+          "work_type": "連絡・調整",
+          "staff": 1
+        },
+        {
+          "work_name": "えのさんmtg、理事長mtgなど",
+          "qty": 2.0,
+          "work_type": "連絡・調整",
+          "staff": 1
+        },
+        {
+          "work_name": "理事長mtg、平松さんmtgなど",
+          "qty": 2.0,
+          "work_type": "連絡・調整",
+          "staff": 1
+        },
+        {
+          "work_name": "平松さん説明対応、mtg、",
+          "qty": 1.0,
+          "work_type": "連絡・調整",
+          "staff": 1
+        },
+        {
+          "work_name": "理事長mtg、タウンホールmtg内容詰めなど",
+          "qty": 1.0,
+          "work_type": "連絡・調整",
+          "staff": 1
+        }
+      ],
+      "top_counts": []
+    },
+    "法人ブランディング": {
+      "total_hours": 31.0,
+      "total_count": 0,
+      "top_hours": [
+        {
+          "work_name": "名駅キッズイベント",
+          "qty": 9.0,
+          "work_type": "判断・対応",
+          "staff": 2
+        },
+        {
+          "work_name": "物販MTG/たんぽぽ・流山ハピネス・ヒロチャット対応/2月物販シート作成/処方箋",
+          "qty": 4.0,
+          "work_type": "連絡・調整",
+          "staff": 1
+        },
+        {
+          "work_name": "新商品価格設定/シート問い合わせ/12月インセンティブ集計(愛知)",
+          "qty": 3.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "インセンティブ集計(関東)",
+          "qty": 2.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "物販・集計シート2026年版作成/物販シート：ヒロ・町屋社員情報追加修正",
+          "qty": 2.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "たんぽぽ新商品価格設定問い合わせ対応",
+          "qty": 1.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "ヒロ商品の価格設定",
+          "qty": 1.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "健診用オンライン資格確認端末設置対応",
+          "qty": 1.0,
+          "work_type": "連絡・調整",
+          "staff": 1
+        },
+        {
+          "work_name": "外部打ち合わせ（Canon伊藤さん）",
+          "qty": 1.0,
+          "work_type": "連絡・調整",
+          "staff": 1
+        },
+        {
+          "work_name": "外部打ち合わせ（SRL松嶌さん）",
+          "qty": 1.0,
+          "work_type": "連絡・調整",
+          "staff": 1
+        },
+        {
+          "work_name": "外部打ち合わせ（このはな大山社長）",
+          "qty": 1.0,
+          "work_type": "連絡・調整",
+          "staff": 1
+        },
+        {
+          "work_name": "外部打ち合わせ（タカラベルモント松川様）",
+          "qty": 1.0,
+          "work_type": "連絡・調整",
+          "staff": 1
+        },
+        {
+          "work_name": "外部打ち合わせ（富士フィルム大内さん）",
+          "qty": 1.0,
+          "work_type": "連絡・調整",
+          "staff": 1
+        },
+        {
+          "work_name": "物販:イーアス問い合わせ対応",
+          "qty": 1.0,
+          "work_type": "定型処理",
+          "staff": 1
+        },
+        {
+          "work_name": "物販シート修正(きらり大森)・処方箋集計",
+          "qty": 1.0,
+          "work_type": "定型処理",
+          "staff": 1
+        }
+      ],
+      "top_counts": []
+    }
+  }
+}

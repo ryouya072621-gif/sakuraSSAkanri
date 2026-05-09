@@ -111,43 +111,65 @@ def scrape_daily_csv(target_date: date = None) -> list:
             logger.info(f"管理者画面URL: {page.url}")
 
             # 「全社売上日報」タブをJSでクリック
-            page.evaluate("""
-                const tabs = Array.from(document.querySelectorAll('a, button, [role=tab]'));
-                const tab = tabs.find(el => el.textContent.includes('\u5168\u793e\u58f2\u4e0a\u65e5\u5831'));
-                if (tab) tab.click();
-            """)
-            page.wait_for_timeout(1500)
+            tab_found = page.evaluate(
+                "(() => { const t = Array.from(document.querySelectorAll('a, button, [role=tab]'))"
+                ".find(el => el.textContent.includes('\u5168\u793e\u58f2\u4e0a\u65e5\u5831'));"
+                " if(t){t.click(); return t.textContent.trim();} return null; })()"
+            )
+            logger.info(f"タブクリック: {tab_found}")
+            page.wait_for_load_state("networkidle")
+            page.wait_for_timeout(2000)
+            # タブクリック後のスクリーンショット
+            page.screenshot(path=f"instance/ssa_tab_{target_date}.png")
+            # 日付関連の入力要素をすべてログ出力
+            inputs = page.evaluate(
+                "Array.from(document.querySelectorAll('input, select')).map(el => "
+                "({type: el.type, name: el.name, id: el.id, placeholder: el.placeholder, value: el.value}))"
+            )
+            logger.info(f"入力要素: {inputs}")
 
-            # ─── 日付を設定 ───
+            # ─── 日付を設定（type="text"のカスタム日付入力）───
             date_str = target_date.strftime("%Y-%m-%d")
-            date_input = page.locator('input[type="date"]')
-            if date_input.count() > 0:
-                date_input.first.fill(date_str)
-                page.wait_for_timeout(1000)
-                # 更新/検索ボタンをJSでクリック
-                page.evaluate("""
-                    const btns = Array.from(document.querySelectorAll('button'));
-                    const keywords = ['\u66f4\u65b0', '\u691c\u7d22', '\u8868\u793a'];
-                    const btn = btns.find(b => keywords.some(k => b.textContent.includes(k)));
-                    if (btn) btn.click();
-                """)
-                page.wait_for_timeout(1500)
+            # type="text"で日付形式(YYYY-MM-DD)の値を持つinputを探す
+            date_input = page.locator('input[type="text"]').filter(has_text="")
+            date_input_found = None
+            for i in range(date_input.count()):
+                val = date_input.nth(i).input_value()
+                if val and len(val) == 10 and val[4] == '-' and val[7] == '-':
+                    date_input_found = date_input.nth(i)
+                    logger.info(f"日付入力フィールド発見: 現在値={val}")
+                    break
+
+            if date_input_found:
+                date_input_found.click(click_count=3)  # 全選択
+                date_input_found.fill(date_str)  # 新しい日付を入力
+                page.wait_for_timeout(500)
+                # Escapeでカレンダーピッカーを閉じる
+                page.keyboard.press("Escape")
+                page.wait_for_timeout(500)
+                # Enterキーで日付確定（カレンダーを閉じて確定）
+                page.keyboard.press("Enter")
+                page.wait_for_timeout(500)
+                # データ自動リロードを待つ
+                page.wait_for_load_state("networkidle")
+                page.wait_for_timeout(8000)
+                page.screenshot(path=f"instance/ssa_before_csv_{target_date}.png")
+                logger.info(f"スクリーンショット: instance/ssa_before_csv_{target_date}.png")
+            else:
+                logger.warning("日付入力フィールドが見つかりません")
 
             # ─── CSVダウンロード ───
             logger.info("CSVダウンロード中...")
-            # CSVダウンロードボタンをJSで探す
-            csv_btn_exists = page.evaluate(
-                "Array.from(document.querySelectorAll('button, a')).some(b => b.textContent.includes('CSV'))"
-            )
-            if not csv_btn_exists:
+            # CSVダウンロードボタンをPlaywrightのlocatorでクリック
+            csv_btn = page.get_by_text("CSVダウンロード", exact=False)
+            if csv_btn.count() == 0:
+                csv_btn = page.locator("button, a").filter(has_text="CSV")
+            if csv_btn.count() == 0:
                 raise RuntimeError("CSVDownload button not found. Page may have changed.")
+            logger.info(f"CSVボタン発見: {csv_btn.count()}個")
 
-            with page.expect_download(timeout=30000) as dl_info:
-                page.evaluate("""
-                    const btns = Array.from(document.querySelectorAll('button, a'));
-                    const btn = btns.find(b => b.textContent.includes('CSV'));
-                    if (btn) btn.click();
-                """)
+            with page.expect_download(timeout=60000) as dl_info:
+                csv_btn.first.click()
             download = dl_info.value
 
             # CSVを保存してパース（デバッグ用にinstance/にも保存）

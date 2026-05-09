@@ -1,10 +1,12 @@
 from flask import Blueprint, render_template, redirect, url_for
+from flask_login import login_required
 from app.models import WorkRecord
 
 bp = Blueprint('main', __name__)
 
 
 @bp.route('/')
+@login_required
 def index():
     record_count = WorkRecord.query.count()
     if record_count == 0:
@@ -13,6 +15,7 @@ def index():
 
 
 @bp.route('/dashboard')
+@login_required
 def dashboard():
     record_count = WorkRecord.query.count()
     if record_count == 0:
@@ -21,8 +24,8 @@ def dashboard():
 
 
 @bp.route('/staff-comparison')
+@login_required
 def staff_comparison():
-    """スタッフ別比較ページ"""
     record_count = WorkRecord.query.count()
     if record_count == 0:
         return redirect(url_for('upload.index'))
@@ -30,8 +33,8 @@ def staff_comparison():
 
 
 @bp.route('/project-analysis')
+@login_required
 def project_analysis():
-    """プロジェクト別分析ページ"""
     record_count = WorkRecord.query.count()
     if record_count == 0:
         return redirect(url_for('upload.index'))
@@ -39,14 +42,14 @@ def project_analysis():
 
 
 @bp.route('/department-overview')
+@login_required
 def department_overview():
-    """部門比較 → ダッシュボードに統合済み"""
     return redirect(url_for('main.dashboard'))
 
 
 @bp.route('/staff-evaluation')
+@login_required
 def staff_evaluation():
-    """スタッフ評価・ランキングページ"""
     record_count = WorkRecord.query.count()
     if record_count == 0:
         return redirect(url_for('upload.index'))

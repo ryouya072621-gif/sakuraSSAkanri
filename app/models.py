@@ -858,6 +858,37 @@ class SSADailyRecord(db.Model):
         }
 
 
+class User(db.Model):
+    """部門ログインユーザー"""
+    __tablename__ = 'users'
+
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(50), unique=True, nullable=False)
+    password_hash = db.Column(db.String(256), nullable=False)
+    department_name = db.Column(db.String(100), nullable=True)
+    is_admin = db.Column(db.Boolean, default=False, nullable=False)
+
+    # Flask-Login required
+    @property
+    def is_authenticated(self):
+        return True
+
+    @property
+    def is_active(self):
+        return True
+
+    @property
+    def is_anonymous(self):
+        return False
+
+    def get_id(self):
+        return str(self.id)
+
+    def check_password(self, password):
+        from werkzeug.security import check_password_hash
+        return check_password_hash(self.password_hash, password)
+
+
 # 標準作業タイプ一覧
 STANDARD_TASK_TYPES = [
     'MTG・会議',

@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 from flask import Blueprint, jsonify, request, current_app
+from flask_login import current_user
 from sqlalchemy import func, distinct, text
 from app import db
 from app.models import WorkRecord, CategoryMapping, DisplayCategory, AppSetting, WorkProjectMapping, STANDARD_TASK_TYPES, WorkTypeClassification, WORK_TYPE_CHOICES
@@ -8,12 +9,27 @@ from app.services.task_grouper import group_ranking_by_task_group, get_unit_type
 bp = Blueprint('api', __name__, url_prefix='/api')
 
 
+def _get_dept():
+    """非管理者の場合、そのユーザーの部門名を返す（管理者はNone）"""
+    if current_user.is_authenticated and not current_user.is_admin:
+        return current_user.department_name
+    return None
+
+
+def _dept_filter(q):
+    """WorkRecordクエリに部門フィルタを適用する"""
+    dept = _get_dept()
+    if dept:
+        return q.filter(WorkRecord.category1 == dept)
+    return q
+
+
 @bp.route('/categories1')
 def get_categories1():
     """大分類（仕事分類1）一覧を取得"""
-    cats = db.session.query(
-        WorkRecord.category1
-    ).distinct().order_by(WorkRecord.category1).all()
+    cats = _dept_filter(
+        db.session.query(WorkRecord.category1).distinct()
+    ).order_by(WorkRecord.category1).all()
 
     result = [c.category1 for c in cats if c.category1]
     return jsonify(result)
@@ -24,7 +40,7 @@ def get_staff_list():
     """スタッフ一覧を取得（名前のみ、重複なし）"""
     category1 = request.args.get('category1')
 
-    query = db.session.query(WorkRecord.staff_name).distinct()
+    query = _dept_filter(db.session.query(WorkRecord.staff_name).distinct())
 
     if category1:
         query = query.filter(WorkRecord.category1 == category1)
@@ -46,12 +62,12 @@ def get_summary():
     hourly_rate = int(request.args.get('hourly_rate', default_rate))
 
     # work_name別に集計（unit_type判定のため）
-    query = db.session.query(
+    query = _dept_filter(db.session.query(
         WorkRecord.category2,
         WorkRecord.work_name,
         func.sum(WorkRecord.quantity).label('quantity'),
         func.sum(WorkRecord.total_amount).label('cost'),
-    )
+    ))
 
     if category1:
         query = query.filter(WorkRecord.category1 == category1)
@@ -101,11 +117,11 @@ def get_category_breakdown():
     end_date = request.args.get('end')
 
     # category2+work_nameごとにSQL集計
-    query = db.session.query(
+    query = _dept_filter(db.session.query(
         WorkRecord.category2,
         WorkRecord.work_name,
         func.sum(WorkRecord.quantity).label('hours')
-    )
+    ))
 
     if category1:
         query = query.filter(WorkRecord.category1 == category1)
@@ -145,12 +161,12 @@ def get_daily_breakdown():
     end_date = request.args.get('end')
 
     # 日付とcategory2+work_nameごとにSQL集計
-    query = db.session.query(
+    query = _dept_filter(db.session.query(
         WorkRecord.work_date,
         WorkRecord.category2,
         WorkRecord.work_name,
         func.sum(WorkRecord.quantity).label('hours')
-    )
+    ))
 
     if category1:
         query = query.filter(WorkRecord.category1 == category1)
@@ -213,12 +229,12 @@ def get_ranking():
     query_limit = limit * 10 if group_by_task else limit
 
     # 業務別に集計（1つのクエリで完結）
-    work_stats = db.session.query(
+    work_stats = _dept_filter(db.session.query(
         WorkRecord.work_name,
         WorkRecord.category2,
         func.sum(WorkRecord.quantity).label('total_hours'),
         func.sum(WorkRecord.total_amount).label('total_cost')
-    )
+    ))
 
     if category1:
         work_stats = work_stats.filter(WorkRecord.category1 == category1)
@@ -236,7 +252,7 @@ def get_ranking():
     ).limit(query_limit).all()
 
     # 全体の時間を計算（SQL集計）
-    total_query = db.session.query(func.sum(WorkRecord.quantity))
+    total_query = _dept_filter(db.session.query(func.sum(WorkRecord.quantity)))
     if category1:
         total_query = total_query.filter(WorkRecord.category1 == category1)
     if staff:
@@ -283,8 +299,8 @@ def get_ranking():
 @bp.route('/date-range')
 def get_date_range():
     """データの日付範囲を取得"""
-    min_date = db.session.query(func.min(WorkRecord.work_date)).scalar()
-    max_date = db.session.query(func.max(WorkRecord.work_date)).scalar()
+    min_date = _dept_filter(db.session.query(func.min(WorkRecord.work_date))).scalar()
+    max_date = _dept_filter(db.session.query(func.max(WorkRecord.work_date))).scalar()
 
     return jsonify({
         'min_date': min_date.strftime('%Y-%m-%d') if min_date else None,
@@ -332,12 +348,12 @@ def get_weekly_trend():
     end_date = request.args.get('end')
 
     # 基本クエリ：日付・category2・work_nameごとに集計
-    query = db.session.query(
+    query = _dept_filter(db.session.query(
         WorkRecord.work_date,
         WorkRecord.category2,
         WorkRecord.work_name,
         func.sum(WorkRecord.quantity).label('hours')
-    )
+    ))
 
     if category1:
         query = query.filter(WorkRecord.category1 == category1)
@@ -406,11 +422,11 @@ def get_alerts():
 
     # 今週のカテゴリ別時間を集計
     def get_weekly_category_hours(week_start, week_end):
-        query = db.session.query(
+        query = _dept_filter(db.session.query(
             WorkRecord.category2,
             WorkRecord.work_name,
             func.sum(WorkRecord.quantity).label('hours')
-        ).filter(
+        )).filter(
             WorkRecord.work_date >= week_start,
             WorkRecord.work_date <= week_end
         )
@@ -468,12 +484,12 @@ def get_staff_comparison():
     end_date = request.args.get('end')
 
     # スタッフ別の業務時間を集計
-    query = db.session.query(
+    query = _dept_filter(db.session.query(
         WorkRecord.staff_name,
         WorkRecord.category2,
         WorkRecord.work_name,
         func.sum(WorkRecord.quantity).label('hours')
-    )
+    ))
 
     if category1:
         query = query.filter(WorkRecord.category1 == category1)
@@ -615,7 +631,7 @@ def get_project_breakdown():
     end_date = request.args.get('end')
 
     # WorkRecordとWorkProjectMappingを結合してデータを取得
-    query = db.session.query(
+    query = _dept_filter(db.session.query(
         WorkRecord.work_name,
         WorkProjectMapping.project,
         WorkProjectMapping.task_type,
@@ -623,7 +639,7 @@ def get_project_breakdown():
     ).outerjoin(
         WorkProjectMapping,
         WorkRecord.work_name == WorkProjectMapping.work_name
-    )
+    ))
 
     if category1:
         query = query.filter(WorkRecord.category1 == category1)
@@ -706,14 +722,14 @@ def get_project_summary():
     limit = int(request.args.get('limit', 10))
 
     # WorkRecordとWorkProjectMappingを結合
-    query = db.session.query(
+    query = _dept_filter(db.session.query(
         WorkProjectMapping.project,
         WorkProjectMapping.task_type,
         func.sum(WorkRecord.quantity).label('hours')
     ).outerjoin(
         WorkProjectMapping,
         WorkRecord.work_name == WorkProjectMapping.work_name
-    )
+    ))
 
     if category1:
         query = query.filter(WorkRecord.category1 == category1)
@@ -782,14 +798,14 @@ def get_unmapped_work_items():
     # マッピングされていない業務名を取得
     subquery = db.session.query(WorkProjectMapping.work_name)
 
-    query = db.session.query(
+    query = _dept_filter(db.session.query(
         WorkRecord.work_name,
         WorkRecord.category1,
         WorkRecord.category2,
         func.sum(WorkRecord.quantity).label('total_hours')
     ).filter(
         ~WorkRecord.work_name.in_(subquery)
-    )
+    ))
 
     if category1:
         query = query.filter(WorkRecord.category1 == category1)
@@ -829,11 +845,11 @@ def get_value_breakdown():
     end_date = request.args.get('end')
 
     # category2+work_nameごとの時間を取得
-    query = db.session.query(
+    query = _dept_filter(db.session.query(
         WorkRecord.category2,
         WorkRecord.work_name,
         func.sum(WorkRecord.quantity).label('hours')
-    )
+    ))
     if category1:
         query = query.filter(WorkRecord.category1 == category1)
     if staff:
@@ -901,8 +917,8 @@ def get_department_comparison():
     start_date = request.args.get('start')
     end_date = request.args.get('end')
 
-    # 部門一覧を取得
-    dept_query = db.session.query(WorkRecord.category1).distinct()
+    # 部門一覧を取得（非管理者は自部門のみ）
+    dept_query = _dept_filter(db.session.query(WorkRecord.category1).distinct())
     departments = [d.category1 for d in dept_query.all() if d.category1]
 
     # カテゴリ→価値ランクのマッピング
@@ -964,7 +980,7 @@ def get_department_comparison():
 @bp.route('/analytics/department-detail')
 def get_department_detail():
     """個別部門の詳細データ"""
-    department = request.args.get('department')
+    department = _get_dept() or request.args.get('department')
     start_date = request.args.get('start')
     end_date = request.args.get('end')
 
@@ -1415,8 +1431,8 @@ def get_department_month_comparison():
     base_start, base_end = _parse_month_range(base_month)
     comp_start, comp_end = _parse_month_range(compare_month)
 
-    # 部門一覧
-    dept_query = db.session.query(WorkRecord.category1).distinct()
+    # 部門一覧（非管理者は自部門のみ）
+    dept_query = _dept_filter(db.session.query(WorkRecord.category1).distinct())
     departments = [d.category1 for d in dept_query.all() if d.category1]
 
     default_rate = AppSetting.get_value('default_hourly_rate', 2000)
@@ -1520,7 +1536,7 @@ def get_department_month_comparison():
 @bp.route('/analytics/department-month-detail')
 def get_department_month_detail():
     """個別部門の前月vs今月詳細比較データ"""
-    department = request.args.get('department')
+    department = _get_dept() or request.args.get('department')
     if not department:
         return jsonify({'error': 'department parameter is required'}), 400
 
@@ -1551,7 +1567,7 @@ def get_department_month_detail():
 @bp.route('/analytics/department-monthly-trend')
 def get_department_monthly_trend():
     """部門の月次推移データ（時間・売上・効率）"""
-    department = request.args.get('department')
+    department = _get_dept() or request.args.get('department')
     if not department:
         return jsonify({'error': 'department parameter is required'}), 400
 

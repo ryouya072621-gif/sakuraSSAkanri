@@ -1,9 +1,14 @@
 import os
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
+from flask_login import LoginManager
 from config import Config
 
 db = SQLAlchemy()
+login_manager = LoginManager()
+login_manager.login_view = 'auth.login'
+login_manager.login_message = 'ログインが必要です'
+login_manager.login_message_category = 'warning'
 
 
 def init_default_data():
@@ -105,6 +110,48 @@ def _ensure_unit_type_rules():
         UnitTypeRule.seed_default_rules()
 
 
+def _init_users():
+    """部門アカウントを初期作成（未作成の場合のみ）"""
+    from app.models import User
+    from werkzeug.security import generate_password_hash
+
+    if User.query.first():
+        return
+
+    accounts = [
+        ('admin',  None,               'Ju6kkSnVE6xx', True),
+        ('dept01', 'その他　スタッフ案件等', 'iFTQVMgc', False),
+        ('dept02', '営業部',           'hJX1lTkZ',     False),
+        ('dept03', '教育部',           'eIPwELwU',     False),
+        ('dept04', '仕事（他）',       '732qfc3D',     False),
+        ('dept05', '統括部',           'KbNZAb0M',     False),
+        ('dept06', '戦略分析部',       'xb3Kj3EC',     False),
+        ('dept07', '庶務部',           'VTOVCFyn',     False),
+        ('dept08', 'デザインチーム',   'Bb2C7T58',     False),
+        ('dept09', '経理部',           'xiUGvL8r',     False),
+        ('dept10', '訪問事務',         'sGXDt3KR',     False),
+        ('dept11', '理事長案件',       'ZeK5a5G0',     False),
+        ('dept12', '品質管理部',       'DTjeRynp',     False),
+        ('dept13', 'CS部',             'q6MY3Sgz',     False),
+        ('dept14', '01経営管理課',     'mwaeK7qT',     False),
+        ('dept15', '人材開発',         'LOfQHx3E',     False),
+        ('dept16', '法人ブランディング', 'CMXF7CXc',   False),
+        ('dept17', 'マネージャー',     'DZ5860QS',     False),
+        ('dept18', '広報部',           'GS4hG1iO',     False),
+        ('dept19', '関東事務部',       'skn6nMcR',     False),
+    ]
+
+    for username, dept, password, is_admin in accounts:
+        user = User(
+            username=username,
+            password_hash=generate_password_hash(password),
+            department_name=dept,
+            is_admin=is_admin,
+        )
+        db.session.add(user)
+    db.session.commit()
+
+
 def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
@@ -112,8 +159,17 @@ def create_app(config_class=Config):
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
     db.init_app(app)
+    login_manager.init_app(app)
+
+    from app.models import User
+
+    @login_manager.user_loader
+    def load_user(user_id):
+        return User.query.get(int(user_id))
 
     from app.routes import main, upload, api, admin, ai, scraper
+    from app.routes import auth
+    app.register_blueprint(auth.bp)
     app.register_blueprint(main.bp)
     app.register_blueprint(upload.bp)
     app.register_blueprint(api.bp)
@@ -126,5 +182,6 @@ def create_app(config_class=Config):
         _migrate_value_rank()
         init_default_data()
         _ensure_unit_type_rules()
+        _init_users()
 
     return app
