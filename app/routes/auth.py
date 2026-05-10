@@ -28,3 +28,15 @@ def login():
 def logout():
     logout_user()
     return redirect(url_for('auth.login'))
+
+
+@bp.route('/api/me')
+def me():
+    from flask import jsonify
+    return jsonify({
+        'is_authenticated': current_user.is_authenticated,
+        'is_anonymous': current_user.is_anonymous,
+        'username': getattr(current_user, 'username', None),
+        'is_admin': getattr(current_user, 'is_admin', None),
+        'department_name': getattr(current_user, 'department_name', None),
+    })

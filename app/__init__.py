@@ -165,7 +165,10 @@ def create_app(config_class=Config):
 
     @login_manager.user_loader
     def load_user(user_id):
-        return User.query.get(int(user_id))
+        try:
+            return db.session.get(User, int(user_id))
+        except Exception:
+            return None
 
     from app.routes import main, upload, api, admin, ai, scraper
     from app.routes import auth
